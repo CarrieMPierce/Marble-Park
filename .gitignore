@@ -1,0 +1,10 @@
+node_modules/
+# built output for Hostinger (rebuild with tools/build-site.ps1)
+site/
+upload-to-github/
+# private planning material: the ChatGPT transcript and reference photos (many belong to other people)
+reference/
+DESIGN-BRIEF.md
+tools/get-reference-images.ps1
+tools/save-chatgpt-transcript.ps1
+tools/serve.ps1

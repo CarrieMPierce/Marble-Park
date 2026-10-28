@@ -1213,7 +1213,7 @@ function endRace(kind) {
 // ---------- Online play: room codes ----------
 // Each device simulates its own marble. The game server (server/server.js) keeps rooms, the race clock,
 // the shortcut gate and results, and relays every player's position to the rest of the room.
-const GAME_SERVER = "https://marble-park.onrender.com"; // the Render service address
+const GAME_SERVER = "https://marble-park-djed.onrender.com"; // the Render service address
 function serverBase() {
   const h = location.hostname;
   if (h === "localhost" || h === "127.0.0.1" || h.endsWith(".onrender.com")) return location.origin;
@@ -1277,6 +1277,8 @@ function leaveRoom() {
   netSend({ t: "leave" }); net.room = null; net.code = null; state.online = false;
   musicOn = false; showScreen("online"); netSay("");
 }
+// closing or leaving the page says goodbye, so the room doesn't wait on a player who has gone
+addEventListener("pagehide", () => { if (net.room) netSend({ t: "leave" }); });
 function onNetLost() {
   const wasIn = !!net.room; net.room = null; net.code = null;
   if (wasIn || state.online) { state.online = false; musicOn = false; if (rollGain) rollGain.gain.value = 0; showScreen("online"); netSay("Lost the connection to the game server. Create or join a room to play again.", true); }

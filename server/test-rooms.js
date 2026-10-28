@@ -9,7 +9,7 @@ const check = (ok, what) => { checks.push([ok, what]); console.log((ok ? "PASS "
 
 function client(name) {
   const ws = new WebSocket(URL), c = { name, ws, got: [], id: null };
-  ws.on("message", raw => { const m = JSON.parse(raw); c.got.push(m); if (m.t === "joined") c.id = m.you; });
+  ws.on("message", raw => { const m = JSON.parse(raw); m.rx = Date.now(); c.got.push(m); if (m.t === "joined") c.id = m.you; });
   c.ready = new Promise(r => ws.on("open", r));
   c.send = o => ws.send(JSON.stringify(o));
   c.last = t => [...c.got].reverse().find(m => m.t === t);
@@ -19,6 +19,10 @@ function client(name) {
 (async () => {
   const a = client("Ana"), b = client("Ben"), c = client("Cy");
   await Promise.all([a.ready, b.ready, c.ready]);
+  // wait by the server's clock, as the game does, since this computer's clock may differ from the server's
+  a.send({ t: "ping", c: Date.now() }); await wait(1500);
+  const pong = a.last("pong"), offset = pong ? pong.s - (pong.c + pong.rx) / 2 : 0;
+  console.log(`clock: server is ${Math.round(offset)} ms ${offset >= 0 ? "ahead of" : "behind"} this computer`);
   a.send({ t: "create", name: "Ana", marble: "sky" }); await wait(200);
   const code = a.last("joined") && a.last("joined").code;
   check(/^[A-HJ-NP-Z]{4}$/.test(code || ""), `room created with code ${code}`);
@@ -45,11 +49,11 @@ function client(name) {
   check(!a.last("st"), "players don't get their own position echoed");
   a.send({ t: "gate" }); await wait(100);
   check(c.last("gate") && c.last("gate").by === a.id, "gate opening reaches everyone");
-  await wait(st.startAt - Date.now() + 300);
+  await wait(st.startAt - (Date.now() + offset) + 500);
   b.send({ t: "finish", penalty: 3, falls: 1 }); await wait(50);
   a.send({ t: "finish", penalty: 0, falls: 0 }); await wait(50);
   c.send({ t: "st", d: [0, 9, 40, 0, 0, 0, "r", 60, 1] });
-  c.ws.close(); // Cy drops out mid-race; everyone remaining has finished, so results follow
+  c.send({ t: "leave" }); c.ws.close(); // Cy closes the game mid-race; everyone remaining has finished, so results follow
   await wait(2000);
   const res = a.last("results");
   check(!!res, "results arrive after the remaining players finish");
@@ -59,7 +63,7 @@ function client(name) {
     check(!res.final, "tournament isn't over after race 1");
   }
   check(a.last("room").players.length === 2, "the dropped player left the room");
-  a.ws.close(); await wait(200);
+  a.send({ t: "leave" }); a.ws.close(); await wait(500);
   check(b.last("room").host === b.id, "host passes on when the host leaves");
   b.ws.close();
   const failed = checks.filter(x => !x[0]).length;

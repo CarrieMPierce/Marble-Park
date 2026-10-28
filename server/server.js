@@ -174,8 +174,9 @@ wss.on("connection", ws => {
   ws.on("close", () => leave(ws));
 });
 
-// drop connections that stopped answering (closed laptop, lost signal)
-setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) { ws.terminate(); continue; } ws.isAlive = false; ws.ping(); } }, 20000);
+// drop connections that stopped answering (closed laptop, lost signal); behind a hosting proxy a
+// closed tab can go unnoticed for a while, so check often
+setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) { ws.terminate(); leave(ws); continue; } ws.isAlive = false; ws.ping(); } }, 10000);
 
 // On Render the server must accept outside connections; on a personal computer it only listens to that computer itself.
 const HOST = process.env.RENDER ? "0.0.0.0" : "127.0.0.1";

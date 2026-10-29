@@ -505,8 +505,8 @@ function courseEntrance() {
   rect(8, 141, 10, 8, 5, "#ffc93c", "plaza");
   switches.push({ x: 0.5, z: 139, r: 1.3, gate: "shortcut" });
   // scenic route (rails) and narrow shortcut (no rails, behind the gate)
-  route([[2, 149, 5], [-6, 156, 4.8], [-9, 166, 4.5], [-3, 174, 4.1], [2, 181, 3.6], [8, 186.5, 3]], 6, "#2d7ff9", true);
-  route([[14, 149, 5], [14, 170, 4], [8, 186.5, 3]], 4, "#ff6b57", false);
+  route([[2, 149, 5], [-6, 156, 4.8], [-9, 166, 4.5], [-3, 174, 4.1], [2, 181, 3.6], [6, 186.5, 3]], 6, "#2d7ff9", true);
+  route([[14, 149, 5], [14, 170, 4], [12.5, 186.5, 3]], 4, "#ff6b57", false);
   gate("shortcut", 11.5, 149.7, 16.5, 151.3, 5);
   sign(["SHORTCUT"], 17.8, 148.4, Math.PI, { size: 66, bg: "#ff7a1a", fg: "#fff" });
   sign(["SCENIC ROUTE"], -1.8, 148.4, Math.PI, { size: 54, bg: "#12a99b", fg: "#fff" });
@@ -517,11 +517,11 @@ function courseEntrance() {
   for (const [z, y] of [[129.5, 7.7], [131.5, 8.2], [133.5, 8.2], [135.5, 7.5]]) coinAir(8, z, y);
   coinLine([[3.5, 139], [-1, 139]], 1.5);
   coinLine([[-3, 152], [-8, 160], [-6.5, 170], [-1, 177.5], [5, 184]], 2.2);
-  coinLine([[14, 152], [14, 168], [10, 182]], 1.4);
+  coinLine([[14, 152], [14, 168], [12.9, 182]], 1.4);
   powerup("rush", -8.6, 164);
-  setLines([[0, -2], [0, 5], [0, 13], [6, 21], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 74], [0, 82], [0, 102], [0, 106], [8, 113], [8, 128], [8, 141], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [8, 186.5], [8, 195]],
-    [[[8, 141], [14, 149], [14, 170], [8, 186.5], [8, 195]]],
-    [[0, 1.5], [0, 5], [0, 13], [5.6, 20.5], [4.9, 24], [4.9, 27.5], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 63.5], [2.8, 68.5], [1.5, 72.5], [0, 74], [0, 82], [0, 92], [0, 102], [0, 106], [8, 113], [9.4, 117], [9.4, 121.5], [8, 124], [8, 128], [8, 134], [5, 142], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [8, 186.5], [8, 194]]);
+  setLines([[0, -2], [0, 5], [0, 13], [6, 21], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 74], [0, 82], [0, 102], [0, 106], [8, 113], [8, 128], [8, 141], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [6, 186.5], [6, 195]],
+    [[[8, 141], [14, 149], [14, 170], [12.5, 186.5], [12.5, 195]]],
+    [[0, 1.5], [0, 5], [0, 13], [5.6, 20.5], [4.9, 24], [4.9, 27.5], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 63.5], [2.8, 68.5], [1.5, 72.5], [0, 74], [0, 82], [0, 92], [0, 102], [0, 106], [8, 113], [9.4, 117], [9.4, 121.5], [8, 124], [8, 128], [8, 134], [5, 142], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [6, 186.5], [6, 194]]);
   CAMZONES.push({ x: 0, z: 92, r: 13, k: 0.45 }, { x: 8, z: 125, r: 9, k: 0.8 }, { x: 0, z: 66, r: 9, k: 0.55 }, { x: 8, z: 141, r: 9, k: 0.55 });
 }
 
@@ -1276,14 +1276,19 @@ function buildObjects() {
     const top = new THREE.MeshStandardMaterial({ map: T.switchOff, roughness: 0.3, emissive: 0x000000 });
     const m = addMesh(new THREE.CylinderGeometry(s.r, s.r, 0.18, 32), [mat({ color: 0xe0a400 }), top, mat({ color: 0xe0a400 })], s.x, y + 0.1, s.z);
     s.mesh = m; s.top = top; s.y = y; m.userData.dyn = true;
+    s.glow = glow(world, s.x, y + 0.6, s.z, 0xffd15a, 3); // pulses while its gate is shut, so it's easy to spot
     signBoard(["HIT THE SWITCH", "TO OPEN THE GATE"], s.x - 1.8, s.z + 1.8, y, Math.PI, { w: 512, h: 160, size: 44, fg: "#1d1838" }, 3.6, 1.1);
   }
   // gates: striped bars across the track that sink out of the way when open
   for (const G of gates) {
     const w = G.x1 - G.x0, g = new THREE.Group(); g.position.set((G.x0 + G.x1) / 2, G.y0, (G.z0 + G.z1) / 2); world.add(g);
-    const barMat = mat({ map: rep(T.stripe, 1, 2), roughness: 0.3 }), n = Math.max(3, Math.round(w / 0.9));
+    // a locked gate, not a bumper: solid maroon bars and a sign telling you how to open it
+    const barMat = gloss({ color: 0x8a1f4a }), n = Math.max(3, Math.round(w / 0.9));
     for (let i = 0; i < n; i++) { const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.7, 10), barMat); bar.position.set(-w / 2 + 0.3 + i * (w - 0.6) / (n - 1), 0.85, 0); bar.castShadow = true; g.add(bar); }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.35, 0.4), M.post); beam.position.y = 1.75; g.add(beam);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.35, 0.4), gloss({ color: 0xfff4e2 })); beam.position.y = 1.75; g.add(beam);
+    const plateTex = textTex(["LOCKED", "HIT THE GOLD SWITCH"], { w: 512, h: 192, size: 52, bg: "#fff4e2", fg: "#8a1f4a", border: "#8a1f4a" });
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(Math.min(w, 4.4), 1.5, 0.14), [M.white, M.white, M.white, M.white, new THREE.MeshStandardMaterial({ map: plateTex }), new THREE.MeshStandardMaterial({ map: plateTex })]);
+    plate.position.y = 2.75; g.add(plate);
     G.mesh = g; g.userData.dyn = true;
     for (const x of [G.x0 - 0.3, G.x1 + 0.3]) addMesh(new THREE.CylinderGeometry(0.3, 0.3, 2.6, 12), M.post, x, G.y0 + 1.3, (G.z0 + G.z1) / 2);
   }
@@ -1941,6 +1946,8 @@ function collectStuff(me, dt) {
     }
   }
   if (me.pow) { me.pow.t -= dt; if (me.pow.t <= 0) { me.pow = null; sfx("powerEnd"); } }
+  // rolling up to a shut gate explains itself once per race
+  for (const g of gates) if (!g.open && !state.zoneHints.has("gate") && Math.hypot(me.x - (g.x0 + g.x1) / 2, me.z - (g.z0 + g.z1) / 2) < 3.5) { state.zoneHints.add("gate"); toast("Locked! Roll over the gold switch to open it for 8 seconds"); }
 }
 
 // ---------- Falls, checkpoints, puddles ----------
@@ -2453,6 +2460,7 @@ function frame(now) {
   }
   for (const b of bumpers) { b.flash = Math.max(0, b.flash - dt); const k = b.flash / 0.35; b.ring.material.emissiveIntensity = 0.1 + k * 1.6; b.cap.material.emissiveIntensity = 0.05 + k * 0.9; b.mesh.scale.setScalar(1 + k * 0.12); b.glow.scale.setScalar(0.01 + k * 7); b.glow.visible = k > 0; }
   for (const p of pads) { p.squish = Math.max(0, p.squish - dt); p.mesh.scale.y = 1 - (p.squish / 0.3) * 0.6; }
+  for (const s of switches) if (s.glow) { const shut = !(gateOf(s) || {}).open; s.glow.visible = shut; if (shut) s.glow.scale.setScalar(2.6 + Math.sin(now / 220) * 1.1); }
   for (const s of switches) { const on = !!(gateOf(s) || {}).open; s.top.map = on ? T.switchOn : T.switchOff; s.top.emissive.setHex(on ? 0x806000 : 0x000000); s.mesh.position.y = s.y + (on ? 0.04 : 0.1); }
   for (const g of gates) g.mesh.position.y = lerp(g.mesh.position.y, g.y0 - (g.open ? 2.2 : 0), 1 - Math.exp(-dt * 8));
   for (const t of fx.boostMats) t.offset.y = (t.offset.y - dt * 1.6) % 1;

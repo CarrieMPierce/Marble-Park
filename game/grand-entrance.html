@@ -1,24 +1,26 @@
 <title>Marble Park</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: full-screen 3D course; HUD pinned to the safe-area edges; menus are cards over the live park. */
+/* Layout: full-screen 3D course; HUD pinned to the safe-area edges; menus are candy cards over the live park. */
 :root {
-  --ink: #1d1838;        /* deep indigo text */
-  --paper: #fff8ec;      /* warm card paper */
-  --orange: #ff7a1a;     /* arcade rail orange */
-  --red: #e8343a;        /* stripe red */
-  --teal: #12a99b;       /* pillar teal */
-  --sun: #ffc93c;        /* chevron yellow */
-  --violet: #7c4dff;
-  --muted: #6b6387;
-  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --ink: #3b1530;        /* deep maroon text and outlines */
+  --paper: #fff6f0;      /* cream card */
+  --orange: #ff4f9a;     /* candy pink: the main accent */
+  --maroon: #8a1f4a;
+  --rose: #ffb3d3;
+  --red: #d0245c;        /* warning raspberry */
+  --teal: #13a597;       /* mint */
+  --sun: #ffc93c;        /* lemon */
+  --violet: #8b6cff;
+  --muted: #7a5a6c;
+  --display: "Baloo 2", "Fredoka", "Trebuchet MS", sans-serif;
   --body: "Fredoka", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; background: #8fd3ff; color: var(--ink); font-family: var(--body); overflow: hidden; -webkit-user-select: none; user-select: none; }
+body { margin: 0; background: #ffd6ea; color: var(--ink); font-family: var(--body); overflow: hidden; -webkit-user-select: none; user-select: none; }
 #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 button { font-family: var(--body); }
 button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
@@ -26,10 +28,10 @@ button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
 /* HUD */
 .hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 8px; }
-.chip { background: rgba(29, 24, 56, .78); color: #fff; border-radius: 14px; padding: 8px 12px; font-size: 13px; line-height: 1.3; backdrop-filter: blur(4px); }
+.chip { background: rgba(59, 21, 48, .78); color: #fff; border-radius: 14px; padding: 8px 12px; font-size: 13px; line-height: 1.3; backdrop-filter: blur(4px); }
 .chip b { font-weight: 600; }
 .chip .k { color: var(--sun); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: 11px; }
-.timer { font-family: var(--display); font-size: clamp(26px, 6vw, 40px); color: #fff; text-shadow: 0 3px 0 var(--ink), 0 0 12px rgba(0,0,0,.25); font-variant-numeric: tabular-nums; text-align: center; padding-top: 2px; }
+.timer { font-family: var(--display); font-weight: 800; line-height: 1; font-size: clamp(30px, 7vw, 46px); color: #fff; text-shadow: 0 3px 0 var(--ink), 0 0 12px rgba(0,0,0,.25); font-variant-numeric: tabular-nums; text-align: center; padding-top: 2px; }
 .timer.low { color: #ffd23f; animation: pulse .6s ease-in-out infinite alternate; }
 @keyframes pulse { to { transform: scale(1.08); } }
 .stand { justify-self: end; display: grid; gap: 3px; min-width: 120px; }
@@ -37,17 +39,17 @@ button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
 .stand .row.me { color: var(--sun); font-weight: 600; }
 .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
 .hud-bottom { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
-.seg { pointer-events: auto; display: inline-flex; background: rgba(29,24,56,.78); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg { pointer-events: auto; display: inline-flex; background: rgba(59,21,48,.78); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg button, .btn-s { border: 0; background: transparent; color: #fff; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--sun); color: var(--ink); }
-.btn-s { pointer-events: auto; background: rgba(29,24,56,.78); }
+.btn-s { pointer-events: auto; background: rgba(59,21,48,.78); }
 .hud-actions { display: flex; gap: 6px; }
-.hint { color: #fff; font-size: 12px; background: rgba(29,24,56,.6); padding: 6px 10px; border-radius: 10px; transition: opacity .6s; }
+.hint { color: #fff; font-size: 12px; background: rgba(59,21,48,.6); padding: 6px 10px; border-radius: 10px; transition: opacity .6s; }
 
 /* Toast + countdown */
 .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 78px); transform: translateX(-50%); background: var(--paper); color: var(--ink); font-weight: 600; padding: 8px 16px; border-radius: 999px; box-shadow: 0 4px 0 var(--ink); font-size: 15px; white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
-.count { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-family: var(--display); font-size: clamp(64px, 20vw, 150px); color: var(--sun); text-shadow: 0 6px 0 var(--ink); }
+.count { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-family: var(--display); font-weight: 800; font-size: clamp(72px, 22vw, 170px); color: #fff; text-shadow: 0 5px 0 var(--orange), 0 10px 0 var(--maroon), 0 16px 24px rgba(59,21,48,.3); }
 .count span { animation: pop .9s ease-out both; }
 @keyframes pop { from { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } to { opacity: .0; } }
 
@@ -57,28 +59,31 @@ button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
 
 /* Menus */
 .screen { position: fixed; inset: 0; overflow-y: auto; display: flex; align-items: flex-start; justify-content: flex-start; padding-block: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 16px); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); box-sizing: border-box; }
-.card { background: var(--paper); border-radius: 22px; box-shadow: 0 6px 0 var(--ink), 0 18px 40px rgba(29,24,56,.25); padding: 22px; width: min(480px, 100%); box-sizing: border-box; border: 3px solid var(--ink); }
-.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--teal); margin: 0 0 6px; }
-h1 { font-family: var(--display); font-weight: 400; font-size: clamp(28px, 7vw, 40px); line-height: 1.02; margin: 0 0 10px; text-wrap: balance; color: var(--ink); }
+/* candy cards: cream with a frosting-white rim and a soft pink drop, like a glazed sweet */
+.card { background: linear-gradient(#fffaf6, #fff1f6); border-radius: 30px; border: 4px solid #fff; box-shadow: 0 0 0 3px var(--rose), 0 9px 0 3px #e47aa8, 0 22px 44px rgba(138,31,74,.28); padding: 22px; width: min(480px, 100%); box-sizing: border-box; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--maroon); margin: 0 0 4px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(40px, 11vw, 58px); line-height: .95; margin: 0 0 10px; text-wrap: balance; color: var(--maroon); letter-spacing: -.01em; text-shadow: 0 3px 0 #fff, 0 6px 0 var(--rose); }
 h1 .accent { color: var(--orange); }
-h2 { font-size: 15px; font-weight: 600; margin: 18px 0 8px; }
+h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18px 0 8px; color: var(--maroon); }
 .card p { margin: 0 0 8px; line-height: 1.45; font-size: 15px; max-width: 62ch; }
 .small { font-size: 13px !important; color: var(--muted); }
 .marbles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.mpick { border: 2px solid transparent; background: #fff; border-radius: 14px; padding: 6px 4px 5px; cursor: pointer; display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink); }
+.mpick { border: 3px solid #fff; background: linear-gradient(#fff, #ffeef5); border-radius: 20px; padding: 7px 4px 6px; cursor: pointer; display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink); box-shadow: 0 0 0 2px #f6d3e2, 0 3px 0 2px #f0bfd4; }
 .mpick canvas { width: 46px; height: 46px; }
-.mpick[aria-pressed="true"] { border-color: var(--ink); background: #ffe9b8; box-shadow: 0 3px 0 var(--ink); }
+.mpick[aria-pressed="true"] { background: linear-gradient(#ffe0ee, #ffc4dd); box-shadow: 0 0 0 3px var(--orange), 0 4px 0 3px var(--maroon); }
 .cams { display: grid; gap: 6px; }
-.cam { text-align: left; border: 2px solid #e7dccb; background: #fff; border-radius: 12px; padding: 8px 10px; cursor: pointer; font-size: 14px; color: var(--ink); }
+.cam { text-align: left; border: 3px solid #fff; background: linear-gradient(#fff, #fff3f8); border-radius: 18px; padding: 8px 12px; cursor: pointer; font-size: 14px; color: var(--ink); box-shadow: 0 0 0 2px #f6d3e2; }
 .cam b { display: block; font-weight: 600; }
 .cam span { color: var(--muted); font-size: 12.5px; }
-.cam[aria-pressed="true"] { border-color: var(--ink); background: #ffe9b8; }
-.go { margin-top: 16px; width: 100%; border: 3px solid var(--ink); background: var(--orange); color: #fff; font-family: var(--display); font-size: 22px; padding: 12px; border-radius: 16px; cursor: pointer; box-shadow: 0 5px 0 var(--ink); text-shadow: 0 2px 0 rgba(0,0,0,.25); }
-.go:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
-.go.alt { background: #fff; color: var(--ink); text-shadow: none; font-size: 16px; }
+.cam[aria-pressed="true"] { background: linear-gradient(#ffe0ee, #ffd0e4); box-shadow: 0 0 0 3px var(--orange); }
+/* jelly buttons: glossy gradient, white rim, a darker candy edge underneath */
+.go { position: relative; margin-top: 16px; width: 100%; border: 3px solid #fff; background: linear-gradient(#ff8cc2, #ff4f9a 55%, #e83a86); color: #fff; font-family: var(--display); font-weight: 800; font-size: 24px; line-height: 1.1; padding: 12px; border-radius: 999px; cursor: pointer; box-shadow: inset 0 4px 0 rgba(255,255,255,.45), 0 0 0 3px #f7a8c9, 0 6px 0 3px var(--maroon), 0 12px 22px rgba(138,31,74,.3); text-shadow: 0 2px 0 rgba(138,31,74,.45); }
+.go:active { transform: translateY(3px); box-shadow: inset 0 4px 0 rgba(255,255,255,.45), 0 0 0 3px #f7a8c9, 0 3px 0 3px var(--maroon); }
+.go.alt { background: linear-gradient(#ffffff, #fff0f6); color: var(--maroon); text-shadow: none; font-size: 18px; box-shadow: inset 0 4px 0 rgba(255,255,255,.8), 0 0 0 3px #f6d3e2, 0 5px 0 3px #e7a9c3, 0 10px 18px rgba(138,31,74,.18); }
+.go.mint { background: linear-gradient(#7ff0dc, #2fcdb7 55%, #1fae9a); text-shadow: 0 2px 0 rgba(10,90,80,.45); box-shadow: inset 0 4px 0 rgba(255,255,255,.45), 0 0 0 3px #a8eedf, 0 6px 0 3px #127a6d, 0 12px 22px rgba(18,122,109,.3); }
 .keys { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
 .keys kbd { font-family: var(--body); font-weight: 600; background: #fff; border: 2px solid #e7dccb; border-bottom-width: 3px; border-radius: 6px; padding: 0 5px; color: var(--ink); }
-.big { font-family: var(--display); font-size: 44px; line-height: 1; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.big { font-family: var(--display); font-weight: 800; color: var(--maroon); font-size: 48px; line-height: 1; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
 .stats div { background: #fff; border-radius: 12px; padding: 8px; text-align: center; font-size: 12px; color: var(--muted); }
 .stats b { display: block; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -92,18 +97,21 @@ h2 { font-size: 15px; font-weight: 600; margin: 18px 0 8px; }
 .code-in { font-family: var(--display); letter-spacing: .2em; text-transform: uppercase; font-size: 22px; }
 .status { min-height: 1.4em; font-size: 14px !important; color: var(--muted); margin-top: 10px !important; }
 .status.err { color: var(--red); font-weight: 600; }
-.roomcode { font-family: var(--display); font-size: clamp(48px, 16vw, 72px); letter-spacing: .14em; color: var(--orange); line-height: 1; text-shadow: 0 4px 0 var(--ink); margin: 2px 0 10px; }
+.roomcode { font-family: var(--display); font-weight: 800; font-size: clamp(52px, 17vw, 78px); letter-spacing: .14em; color: var(--orange); line-height: 1; text-shadow: 0 3px 0 #fff, 0 6px 0 var(--maroon); margin: 2px 0 10px; }
 .plist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .plist li { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 12px; padding: 6px 10px; font-weight: 600; }
 .plist canvas { width: 28px; height: 28px; flex: none; }
 .plist .tag { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--teal); }
 .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .courses { display: grid; gap: 6px; }
-.course { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; text-align: left; border: 2px solid #e7dccb; background: #fff; border-radius: 12px; padding: 8px 10px; cursor: pointer; color: var(--ink); font-size: 14px; }
-.course .n { grid-row: span 2; font-family: var(--display); font-size: 22px; color: var(--orange); width: 1.4em; text-align: center; }
-.course b { font-weight: 600; }
+/* board cards: each wears its board's colour pair; the number sits in a gumdrop badge */
+.course { --c1: #ffd1e4; --c2: #ff5fa2; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; text-align: left; border: 3px solid #fff; background: linear-gradient(135deg, #fff 0%, var(--c1) 100%); border-radius: 22px; padding: 10px 12px; cursor: pointer; color: var(--ink); font-size: 14px; box-shadow: 0 0 0 2px #f2d2e0, 0 4px 0 2px #ecc0d3; }
+.course[data-id="bumper"] { --c1: #cfe6ff; --c2: #e8343a; }
+.course[data-id="skate"] { --c1: #e6dcff; --c2: #8b6cff; }
+.course .n { grid-row: span 2; font-family: var(--display); font-weight: 800; font-size: 22px; color: #fff; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.75) 0 14%, transparent 15%), var(--c2); box-shadow: inset 0 -4px 0 rgba(0,0,0,.18), 0 0 0 3px #fff; text-shadow: 0 2px 0 rgba(0,0,0,.2); }
+.course b { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--maroon); }
 .course span:last-child { color: var(--muted); font-size: 12.5px; }
-.course[aria-pressed="true"] { border-color: var(--ink); background: #ffe9b8; }
+.course[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--c2), 0 5px 0 3px var(--maroon); }
 .course[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .course .done { color: var(--teal); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; margin-left: 6px; }
 .course .stars-s { color: #e0a400; font-size: 13px; letter-spacing: .08em; margin-left: 6px; }
@@ -129,19 +137,22 @@ h2 { font-size: 15px; font-weight: 600; margin: 18px 0 8px; }
 .standings tbody tr { border-bottom: 4px solid transparent; }
 
 /* Fall / dissolve gag */
-.gag { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); transform: translateX(-50%); width: min(360px, calc(100% - 32px)); background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink); padding: 10px 14px 12px; text-align: center; pointer-events: none; }
-.gag svg { width: 100%; height: 92px; display: block; }
-.gag p { margin: 2px 0 0; font-weight: 600; font-size: 16px; }
-.gag .pen { color: var(--red); font-family: var(--display); }
+.gag { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); transform: translateX(-50%); width: min(380px, calc(100% - 32px)); background: linear-gradient(#fffaf6, #fff0f6); border: 4px solid #fff; border-radius: 26px; box-shadow: 0 0 0 3px var(--rose), 0 7px 0 3px #e47aa8, 0 16px 30px rgba(138,31,74,.25); padding: 8px 14px 12px; text-align: center; pointer-events: none; }
+.gag svg { width: 100%; height: 104px; display: block; }
+.gag p { margin: 2px 0 0; font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--maroon); line-height: 1.2; }
+.gag .small { font-family: var(--body); font-weight: 500; }
+.gag .pen { color: var(--red); font-family: var(--display); font-weight: 800; }
 .drive { animation: drive 2.4s ease-in-out both; }
 @keyframes drive { 0% { transform: translateX(-260px); } 35%, 70% { transform: translateX(0); } 100% { transform: translateX(300px); } }
 .popup { animation: popup 1s ease-out both; transform-origin: 50% 100%; }
 @keyframes popup { 0% { transform: translateY(70px); } 25%, 75% { transform: translateY(0); } 100% { transform: translateY(70px); } }
 .blink { animation: blink .3s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .2; } }
+.wave { animation: wave .5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 20% 95%; }
+@keyframes wave { from { transform: rotate(-18deg); } to { transform: rotate(22deg); } }
 .drip { animation: drip 1.1s ease-in both; }
 @keyframes drip { from { transform: scaleY(1); } to { transform: scaleY(.15) translateY(40px); } }
-@media (prefers-reduced-motion: reduce) { .drive, .popup, .drip, .blink, .count span, .timer.low { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .drive, .popup, .drip, .blink, .wave, .count span, .timer.low { animation: none; } }
 @media (max-width: 520px) { .stand { min-width: 0; } .stand .row .nm { display: none; } .chip { font-size: 12px; padding: 6px 9px; } }
 </style>
 
@@ -187,7 +198,7 @@ h2 { font-size: 15px; font-weight: 600; margin: 18px 0 8px; }
       <button class="cam" data-cam="dynamic"><b>Dynamic (hybrid)</b><span>Chase view that rises for the bowl, jumps and crowds</span></button>
     </div>
     <button class="go" id="btnOnline">Play online with friends</button>
-    <button class="go alt" id="btnGo">Practice vs computer</button>
+    <button class="go mint" id="btnGo">Practice vs computer</button>
     <h2>How to play</h2>
     <div class="keys"><span>Phone: drag a finger anywhere</span><span><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span><kbd>C</kbd> switch camera</span></div>
     <p class="small" style="margin-top:10px">Online: 2–8 players, each on their own phone or computer, joined by a 4-letter room code. Practice: three computer rivals stand in for real players.</p>
@@ -264,6 +275,7 @@ function rng(seed) { return () => { seed = (seed * 16807) % 2147483647; return (
 // ---------- Tuning ----------
 const G = 24, ACC = 15, VMAX = 24, STEP = 0.35, DROP = 0.5, R = 0.5, SUB = 1 / 120;
 const PUDDLE_PENALTY = 3, GATE_OPEN_SECS = 8, BOOST_SPEED = 18;
+let BOWL_DAMP = 0.22; // rolling drag inside bowls (the open track uses 0.42): low enough to swoop, high enough not to orbit forever
 
 // ---------- Marbles (starter set of eight, no confetti) ----------
 const MARBLES = [
@@ -307,7 +319,7 @@ function drawSwatch(cv, d) {
 // ---------- Courses ----------
 // A course is built from pieces. Every piece reports a surface height at (x,z) or null;
 // walls are just pieces taller than a marble can step up.
-const pieces = [], holes = [], puddles = [], bumpers = [], pads = [], boosts = [], kickers = [], zones = [], switches = [], gates = [], bowls = [], signs = [], coins = [], pickups = [];
+const pieces = [], holes = [], puddles = [], bumpers = [], pads = [], boosts = [], kickers = [], zones = [], switches = [], gates = [], bowls = [], signs = [], coins = [], pickups = [], drains = [];
 const decor = { segs: [], rails: [], posts: [] };
 let COURSE = null, TIME_LIMIT = 75, CHECKPOINTS = [], FINISH = null, MAIN = [], LINES = [], TOTAL_ARC = 1, BOTPATH = [], CAMZONES = [];
 
@@ -329,6 +341,9 @@ function route(pts, w, color, rails, pipe = 0) {
 function rect(cx, cz, hx, hz, h, color, kind, gz = 0) { const p = { t: "rect", cx, cz, hx, hz, h, color, kind, gz }; pieces.push(p); return p; }
 function wall(x0, z0, x1, z1, h, gz = 0) { const p = { t: "rect", cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: Math.abs(x1 - x0) / 2, hz: Math.abs(z1 - z0) / 2, h, gz, wall: true }; pieces.push(p); return p; }
 
+// skate-bowl profile: a rounded bottom (out to 40% of the radius), then straight walls of one even slope up to the rim.
+// For a given depth that's the gentlest steepest-point a bowl can have, so its walls stay climbable by steering.
+function bowlH(B, r) { const b = B.R * 0.4, S = B.depth / (B.R - b / 2); return B.rim - B.depth + (r < b ? S * r * r / (2 * b) : S * b / 2 + S * (r - b)); }
 let capHit = false;
 function pieceH(p, x, z) {
   if (p.t === "seg") {
@@ -342,7 +357,7 @@ function pieceH(p, x, z) {
     return p.pipe ? base + p.pipe * (d / p.hw) ** 2 : base;
   }
   if (p.t === "rect") return Math.abs(x - p.cx) <= p.hx && Math.abs(z - p.cz) <= p.hz ? p.h + p.gz * (z - p.cz) : null;
-  if (p.t === "bowl") { const r = Math.hypot(x - p.cx, z - p.cz); if (r > p.R) return null; const q = r / p.R; return p.rim - p.depth * (1 - q * q); }
+  if (p.t === "bowl") { const r = Math.hypot(x - p.cx, z - p.cz); return r > p.R ? null : bowlH(p, r); }
   if (p.t === "ring") {
     const r = Math.hypot(x - p.cx, z - p.cz); if (r < p.r0 || r > p.r1) return null;
     const a = Math.atan2(z - p.cz, x - p.cx);
@@ -409,7 +424,10 @@ function ramp(cx, cz, hw, len, rise, skin = "cookie") { const base = floorAt(cx,
 // candy coins: a trail along [x, z] points at track height, or single coins hanging in the air over a jump
 function coinLine(pts, gap = 1.7) { for (const s of sampleLine(pts, gap)) coins.push({ x: s.x, z: s.z }); }
 function coinAir(x, z, y) { coins.push({ x, z, y }); }
-// power-up capsules: rush (Sugar Rush), magnet, shield (Bumper Shield), air (Big Air)
+// a drain at the bottom of a bowl: it pulls harder the closer you get (with a swirl), and inside `r` it flushes you
+// back to the last checkpoint. The pull stays weaker than your steering, so you can always roll clear.
+function drain(cx, cz, r = 1.1, pull = 4.5) { drains.push({ cx, cz, r, pull }); }
+// power-up capsules: rush (Candy Comet), magnet, shield (Bumper Shield), air (Big Air)
 function powerup(type, x, z) { pickups.push({ type, x, z }); }
 // points round an arc (degrees), for hairpins and curves
 function arc(cx, cz, r, a0, a1, h0, h1, n) { const pts = []; for (let i = 1; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts.push([cx + r * Math.cos(a), cz + r * Math.sin(a), h0 + (h1 - h0) * i / n]); } return pts; }
@@ -460,7 +478,7 @@ function courseEntrance() {
   route([[0, 74, 7], [0, 82, 6]], 6, "#ff6b57", true);
   ramp(0, 77.5, 1.5, 3.5, 0.7);
   coinAir(0, 80, 7.6); coinAir(0, 81.5, 7.3);
-  bowl(0, 92, 10, 6, 3, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  bowl(0, 92, 10, 6, 3.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
   for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; coins.push({ x: Math.cos(a) * 7.2, z: 92 + Math.sin(a) * 7.2 }); }
   // out of the bowl (straight, so no ledge forms inside the rim), past the puddle, onto the bounce pad and over the gap
   route([[0, 102, 6], [0, 106, 5.8], [8, 113, 5.4], [8, 128, 5]], 6, "#7c4dff", true);
@@ -487,7 +505,7 @@ function courseEntrance() {
   setLines([[0, -2], [0, 5], [0, 13], [6, 21], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 74], [0, 82], [0, 102], [0, 106], [8, 113], [8, 128], [8, 141], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [8, 186.5], [8, 195]],
     [[[8, 141], [14, 149], [14, 170], [8, 186.5], [8, 195]]],
     [[0, 1.5], [0, 5], [0, 13], [5.6, 20.5], [4.9, 24], [4.9, 27.5], [6, 30], [-4, 40], [-4, 49], [0, 58], [0, 63.5], [2.8, 68.5], [1.5, 72.5], [0, 74], [0, 82], [0, 92], [0, 102], [0, 106], [8, 113], [9.4, 117], [9.4, 121.5], [8, 124], [8, 128], [8, 134], [5, 142], [2, 149], [-6, 156], [-9, 166], [-3, 174], [2, 181], [8, 186.5], [8, 194]]);
-  CAMZONES.push({ x: 0, z: 92, r: 13, k: 0.85 }, { x: 8, z: 125, r: 9, k: 0.8 }, { x: 0, z: 66, r: 9, k: 0.55 }, { x: 8, z: 141, r: 9, k: 0.55 });
+  CAMZONES.push({ x: 0, z: 92, r: 13, k: 0.45 }, { x: 8, z: 125, r: 9, k: 0.8 }, { x: 0, z: 66, r: 9, k: 0.55 }, { x: 8, z: 141, r: 9, k: 0.55 });
 }
 
 // ---- Course 2: Bumper Boulevard (gumball pinball: a marble-run tower, jawbreaker bumpers, flippers that bat you back,
@@ -557,11 +575,12 @@ function courseSkate() {
   ramp(0, 27, 1.6, 4, 1.2);
   for (const [z, y] of [[31, 13.8], [33, 13.7], [35, 13.0]]) coinAir(0, z, y);
   coinLine([[-3, 18], [-3, 36]], 2.2); coinLine([[3, 18], [3, 36]], 2.2);
-  // donut bowl 1: ride the wall round the marshmallow pits
+  // drain bowl: ride the wall round the swirling drain at the bottom (a few brave coins sit close to it)
   route([[0, 38, 10.6], [0, 42, 10.4]], 6, "#9be15d", true);
-  bowl(0, 52, 10, 10.4, 3, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
-  patch("rough", -5.8, 52, 1.5, 2.2, "marsh"); patch("rough", 5.8, 52, 1.5, 2.2, "marsh");
+  bowl(0, 52, 10, 10.4, 3.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  drain(0, 52);
   for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; coins.push({ x: Math.cos(a) * 7.8, z: 52 + Math.sin(a) * 7.8 }); }
+  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; coins.push({ x: Math.cos(a) * 3.2, z: 52 + Math.sin(a) * 3.2 }); }
   // out of the bowl, Big Air, a boost, a kicker and a gap jump onto the deck
   route([[0, 62, 10.4], [0, 66, 10.2], [8, 74, 9.8], [8, 84, 9.3]], 6, "#8b6cff", true);
   powerup("air", 0, 64.5);
@@ -579,7 +598,7 @@ function courseSkate() {
   for (const [z, y] of [[142.8, 7.2], [144.6, 6.9]]) coinAir(-8, z, y);
   coinLine([[5, 110], [-3.5, 121.5], [-10.5, 133]], 2.2);
   // donut bowl 2: a big frosted donut in the middle, exit round to the right
-  bowl(-8, 157, 11, 5.0, 3.2, [{ a: -Math.PI / 2, hw: 4 }, { a: 0, hw: 3 }]);
+  bowl(-8, 157, 11, 5.0, 3.9, [{ a: -Math.PI / 2, hw: 4 }, { a: 0, hw: 3 }]);
   bumpers.push({ x: -8, z: 157 });
   for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; coins.push({ x: -8 + Math.cos(a) * 6, z: 157 + Math.sin(a) * 6 }); }
   route([[3, 157, 5.0], [8, 157, 4.8], [12, 163, 4.6], [12, 172, 4.2]], 6, "#9be15d", true);
@@ -587,19 +606,19 @@ function courseSkate() {
   finishArea(12, 178.5, 7, 6.5, 4.2, 176);
   checkpoint(0, 31, 3.5, 9.6); checkpoint(8, 72, 3.5, 7.6); checkpoint(8, 98, 3.5, 8.6); checkpoint(-8, 134, 3.5, 9.6);
   setLines([[0, -2], [0, 5], [0, 16], [0, 38], [0, 42], [0, 52], [0, 62], [0, 66], [8, 74], [8, 84], [8, 88], [8, 104], [8, 107], [0, 118], [-8, 132], [-8, 146], [-8, 157], [3, 157], [8, 157], [12, 163], [12, 172], [12, 180]], [],
-    [[0, 1.5], [0, 5], [0, 16], [0, 38], [0, 42], [0, 52], [0, 62], [0, 66], [8, 74], [8, 84], [8, 88], [8, 96], [8, 100], [8, 104], [8, 107], [2.3, 119.3], [-8, 132], [-8, 146], [-5, 152], [-1, 156], [3, 157], [8, 157], [12, 163], [12, 172], [12, 180]]);
-  CAMZONES.push({ x: 0, z: 52, r: 12, k: 0.85 }, { x: 8, z: 88, r: 9, k: 0.8 }, { x: -8, z: 157, r: 13, k: 0.85 }, { x: 0, z: 30, r: 6, k: 0.5 });
+    [[0, 1.5], [0, 5], [0, 16], [0, 38], [0, 42], [-4.5, 45.5], [-6.6, 52], [-4.5, 58.5], [0, 62], [0, 66], [8, 74], [8, 84], [8, 88], [8, 96], [8, 100], [8, 104], [8, 107], [2.3, 119.3], [-8, 132], [-8, 146], [-5, 152], [-1, 156], [3, 157], [8, 157], [12, 163], [12, 172], [12, 180]]);
+  CAMZONES.push({ x: 0, z: 52, r: 12, k: 0.45 }, { x: 8, z: 88, r: 9, k: 0.8 }, { x: -8, z: 157, r: 13, k: 0.45 }, { x: 0, z: 30, r: 6, k: 0.5 });
 }
 
 // par: a time that takes a clean, quick run (beating it earns a star)
 const COURSES = [
-  { id: "entrance", num: 1, name: "Sugar Midway", blurb: "The teaching board: gumdrop bumpers, a syrup spill, the bowl, a cookie jump, Sugar Rush and a shortcut switch.", time: 75, par: 25, theme: "midway", bumperSkin: "gumdrop", bumperKick: 5, bumperBounce: 0.55, build: courseEntrance },
+  { id: "entrance", num: 1, name: "Sugar Midway", blurb: "The teaching board: gumdrop bumpers, a syrup spill, the bowl, a cookie jump, Candy Comet and a shortcut switch.", time: 75, par: 25, theme: "midway", bumperSkin: "gumdrop", bumperKick: 5, bumperBounce: 0.55, build: courseEntrance },
   { id: "bumper", num: 2, name: "Bumper Boulevard", blurb: "A marble-run tower, two gumball pinball tables, flippers that bat you back, drain holes, Magnet and Bumper Shield.", time: 95, par: 35, theme: "gumball", bumperSkin: "jawbreaker", bumperKick: 10, bumperBounce: 0.9, build: courseBumper },
-  { id: "skate", num: 3, name: "Skate Park", blurb: "Frosted half-pipes, donut bowls, kickers and a gap jump. Steer in the air to spin a trick; Big Air sends you higher.", time: 65, par: 22, theme: "frosted", bumperSkin: "donut", bumperKick: 5, bumperBounce: 0.6, build: courseSkate },
+  { id: "skate", num: 3, name: "Skate Park", blurb: "Frosted half-pipes, a drain bowl that flushes you if you roll too near the bottom, kickers and a gap jump. Steer in the air to spin a trick.", time: 65, par: 22, theme: "frosted", bumperSkin: "donut", bumperKick: 5, bumperBounce: 0.6, build: courseSkate },
 ];
 const courseById = id => COURSES.find(c => c.id === id) || COURSES[0];
 function loadCourseData(c) {
-  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups]) a.length = 0;
+  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains]) a.length = 0;
   decor.segs = []; decor.rails = []; decor.posts = [];
   CHECKPOINTS = []; CAMZONES = []; FINISH = null; COURSE = c; TIME_LIMIT = c.time;
   c.build();
@@ -675,13 +694,13 @@ T.grass = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#6fd45e"; c.fillRect
 T.water = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#38c3d6"; c.fillRect(0, 0, w, h); c.strokeStyle = "rgba(255,255,255,.35)"; c.lineWidth = 3; const r = rng(11); for (let i = 0; i < 40; i++) { const x = r() * w, y = r() * h; c.beginPath(); c.arc(x, y, 6 + r() * 10, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); } });
 
 function textTex(lines, opts) {
-  const o = Object.assign({ w: 512, h: 128, bg: "#fff8ec", fg: "#1d1838", border: "#1d1838", font: "Bungee", size: 64, checker: false, cross: false }, opts);
+  const o = Object.assign({ w: 512, h: 128, bg: "#fff8ec", fg: "#1d1838", border: "#1d1838", font: "Baloo 2", size: 64, checker: false, cross: false }, opts);
   return canvasTex(o.w, o.h, (c, w, h) => {
     if (o.checker) { for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 32) { c.fillStyle = ((x + y) / 32) % 2 ? "#1d1838" : "#fff"; c.fillRect(x, y, 32, 32); } c.fillStyle = "#fff8ec"; c.fillRect(40, 22, w - 80, h - 44); }
     else { c.fillStyle = o.bg; c.fillRect(0, 0, w, h); c.lineWidth = 12; c.strokeStyle = o.border; c.strokeRect(6, 6, w - 12, h - 12); }
     let x0 = w / 2;
     if (o.cross) { c.fillStyle = "#e8343a"; const s = h * 0.5, cx = 70, cy = h / 2; c.fillRect(cx - s / 2, cy - s / 6, s, s / 3); c.fillRect(cx - s / 6, cy - s / 2, s / 3, s); x0 = w / 2 + 40; }
-    c.fillStyle = o.fg; c.textAlign = "center"; c.textBaseline = "middle"; c.font = `${o.size}px "${o.font}", Impact, sans-serif`;
+    c.fillStyle = o.fg; c.textAlign = "center"; c.textBaseline = "middle"; c.font = `800 ${o.size}px "${o.font}", "Fredoka", sans-serif`;
     lines.forEach((t, i) => c.fillText(t, x0, h / 2 + (i - (lines.length - 1) / 2) * o.size * 1.05));
   });
 }
@@ -795,7 +814,7 @@ T.marsh = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#f3e6ee"; c.fillRect
 T.cookie = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#e3a85a"; c.fillRect(0, 0, w, h); const r = rng(12); for (let i = 0; i < 60; i++) { c.fillStyle = "rgba(180,110,40,.35)"; c.fillRect(r() * w, r() * h, 3, 3); } c.fillStyle = "#4a2410"; for (let i = 0; i < 12; i++) { c.beginPath(); c.arc(r() * w, r() * h, 4 + r() * 3, 0, Math.PI * 2); c.fill(); } c.strokeStyle = "#1d1838"; c.lineWidth = 5; c.strokeRect(0, 0, w, h); });
 // power-up icons: a shape on a coloured disc, outlined, so each reads by shape as well as colour
 const POWERS = {
-  rush: { name: "Sugar Rush", col: "#ff7a1a", secs: 3 },
+  rush: { name: "Candy Comet", col: "#ff7a1a", secs: 3 },
   magnet: { name: "Magnet", col: "#e8343a", secs: 8 },
   shield: { name: "Bumper Shield", col: "#2d9bff", secs: 8 },
   air: { name: "Big Air", col: "#35c759", secs: 8 },
@@ -1083,10 +1102,7 @@ function buildCourse() {
     if (p.pipe) {
       const mat2 = pipeMat.clone(); mat2.map = rep(pipeTex, 1, p.len / 6);
       pipeMesh(p, mat2);
-      if (p.capB) { // bowl-shaped joint so the trough flows round the bend
-        const prof = []; for (let i = 0; i <= 12; i++) { const r = p.hw * i / 12; prof.push(new THREE.Vector2(r, p.pipe * (r / p.hw) ** 2)); }
-        addMesh(new THREE.LatheGeometry(prof, 40), pipeMat, p.bx, p.bh, p.bz);
-      }
+      if (p.capB) jointDisk(p.bx, p.bz, p.hw * 0.995, p.bh, pipeMat); // the trough flows round the bend
       pillar((p.ax + p.bx) / 2, (p.az + p.bz) / 2, (p.ah + p.bh) / 2 - 0.5);
       continue;
     }
@@ -1094,7 +1110,7 @@ function buildCourse() {
     const side = surf({ map: rep(T.blocks, sl / 6, 1) });
     const m = addMesh(new THREE.BoxGeometry(p.w, 0.8, sl), [side, side, top, side, side, side], (p.ax + p.bx) / 2, (p.ah + p.bh) / 2 - 0.4, (p.az + p.bz) / 2);
     m.rotation.order = "YXZ"; m.rotation.y = Math.atan2(p.dx, p.dz); m.rotation.x = -Math.atan2(dh, p.len);
-    if (p.capB) addMesh(new THREE.CylinderGeometry(p.hw, p.hw, 0.8, 28), [side, top, side], p.bx, p.bh - 0.4, p.bz);
+    if (p.capB) { addMesh(new THREE.CylinderGeometry(p.hw, p.hw, 0.8, 28, 1, true), side, p.bx, p.bh - 0.45, p.bz); jointDisk(p.bx, p.bz, p.hw * 0.995, p.bh, surf({ map: rep(THEME.lane, 1, 1), roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide })); }
     pillar((p.ax + p.bx) / 2, (p.az + p.bz) / 2, (p.ah + p.bh) / 2 - 0.8);
     // direction chevrons painted on the lane
     if (p.len > 7) {
@@ -1134,7 +1150,7 @@ function buildCourse() {
   }
   // bowls: lathe surface, outer wall, lip blocks with entry/exit gaps
   for (const B of bowls) {
-    const prof = []; for (let i = 0; i <= 28; i++) { const r = B.R * i / 28, q = r / B.R; prof.push(new THREE.Vector2(r, B.rim - B.depth * (1 - q * q))); }
+    const prof = []; for (let i = 0; i <= 28; i++) { const r = B.R * i / 28; prof.push(new THREE.Vector2(r, bowlH(B, r))); }
     addMesh(new THREE.LatheGeometry(prof, 64), surf({ map: rep(THEME.bandsTex, 16, 1), side: THREE.DoubleSide, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 }), B.cx, 0, B.cz);
     addMesh(new THREE.CylinderGeometry(B.R + 0.05, B.R - 2, 4, 64, 1, true), surf({ map: rep(T.blocks, 10, 1) }), B.cx, B.rim - 2, B.cz);
     addMesh(new THREE.CylinderGeometry(2, 2.6, B.rim - 3, 20), THEME.pillarMat, B.cx, (B.rim - 3) / 2 - 1, B.cz, true, false);
@@ -1201,6 +1217,22 @@ function buildObjects() {
     u.glow = glow(world, u.x, y + 0.4, u.z, new THREE.Color(POWERS[u.type].col).getHex(), 2.4);
     u.mesh = g; u.y = y; u.back = 0;
   }
+  // drains: a slowly turning swirl (dark spiral arms, so it reads without colour) round a dark plughole
+  for (const dr of drains) {
+    dr.y = floorAtNoHoles(dr.cx, dr.cz) ?? 0;
+    const tex = canvasTex(256, 256, (c, w, h) => {
+      c.clearRect(0, 0, w, h); c.translate(128, 128);
+      for (let arm = 0; arm < 4; arm++) { c.beginPath(); for (let i = 0; i <= 40; i++) { const t = i / 40, a = arm * Math.PI / 2 + t * 4.2, r = 22 + t * 92; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.strokeStyle = arm % 2 ? "#8a1f4a" : "#3b1530"; c.lineWidth = 14; c.lineCap = "round"; c.stroke(); }
+      c.beginPath(); c.arc(0, 0, 30, 0, Math.PI * 2); c.fillStyle = "#1a0712"; c.fill(); c.lineWidth = 6; c.strokeStyle = "#ff9cc6"; c.stroke();
+    });
+    // follow the bowl's curve with a small grid so the swirl hugs the surface
+    const n = 16, pos = [], uv = [], idx = [];
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { const u = i / n * 2 - 1, v = j / n * 2 - 1, x = dr.cx + u * dr.pull, z = dr.cz + v * dr.pull; pos.push(x, (floorAtNoHoles(x, z) ?? dr.y) + 0.14, z); uv.push(i / n, j / n); }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c2 = a + n + 1, d = c2 + 1; idx.push(a, c2, b, b, c2, d); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 1; world.add(m);
+    tex.center.set(0.5, 0.5); courseAnims.push(dt => { tex.rotation -= dt * 2.2; });
+  }
   // flippers: two paddles either side of the gap, warning bulbs at their pivots
   for (const k of kickers) {
     k.y = floorAt(k.cx, k.z); k.paddles = [];
@@ -1247,7 +1279,22 @@ function buildObjects() {
   const line = new THREE.Mesh(new THREE.PlaneGeometry(fw - 1, 1.2), new THREE.MeshStandardMaterial({ map: canvasTex(256, 32, (c, w, h) => { for (let x = 0; x < w; x += 16) for (let y = 0; y < h; y += 16) { c.fillStyle = ((x + y) / 16) % 2 ? "#1d1838" : "#fff"; c.fillRect(x, y, 16, 16); } }) }));
   line.rotation.x = -Math.PI / 2; line.position.set(F.cx, F.y + 0.03, F.z); line.receiveShadow = true; world.add(line);
 }
-function floorAtNoHoles(x, z) { let best = null; for (const p of pieces) { if (p.wall) continue; const h = pieceH(p, x, z); if (h !== null && (best === null || h > best)) best = h; } return best; }
+// the rolling surface exactly as the physics sees it (joint caps only where no track body covers), ignoring walls and holes
+function floorAtNoHoles(x, z) {
+  let best = null, cap = null;
+  for (const p of pieces) { if (p.wall) continue; const h = pieceH(p, x, z); if (h === null) continue; if (p.t === "seg" && capHit) { if (cap === null || h > cap) cap = h; continue; } if (best === null || h > best) best = h; }
+  return best === null ? cap : best;
+}
+// a joint between two track pieces, drawn on that real surface (a fixed disc would poke up wherever the next piece slopes away)
+function jointDisk(cx, cz, rad, base, material) {
+  const nR = 8, nA = 40, pos = [], uv = [], idx = [], h = (x, z) => (floorAtNoHoles(x, z) ?? base) - 0.02;
+  pos.push(cx, h(cx, cz), cz); uv.push(0.5, 0);
+  for (let i = 1; i <= nR; i++) for (let j = 0; j < nA; j++) { const r = rad * i / nR, a = j / nA * Math.PI * 2, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; pos.push(x, h(x, z), z); uv.push(0.5 + 0.5 * r / rad, 0.5); }
+  for (let j = 0; j < nA; j++) idx.push(0, 1 + (j + 1) % nA, 1 + j);
+  for (let i = 1; i < nR; i++) for (let j = 0; j < nA; j++) { const a = 1 + (i - 1) * nA + j, b = 1 + (i - 1) * nA + (j + 1) % nA; idx.push(a, b, a + nA, b, b + nA, a + nA); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, material); m.receiveShadow = true; world.add(m); return m;
+}
 function arch(x, z, y, yaw, width, tex) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; world.add(g);
   // tall enough that the follow camera passes underneath the banner
@@ -1592,6 +1639,7 @@ const SFX = {
   power() { const t = AC.currentTime; [72, 76, 79, 84, 88].forEach((n, i) => tone(mf(n), t + i * 0.05, 0.16, "triangle", 0.16)); tone(mf(91), t + 0.26, 0.4, "sine", 0.12); },
   trick() { const t = AC.currentTime; noiseHit(t, 0.2, 0.12, 3000); tone(mf(79), t + 0.05, 0.15, "triangle", 0.14); tone(mf(86), t + 0.13, 0.3, "triangle", 0.16); },
   flipper() { const t = AC.currentTime; noiseHit(t, 0.06, 0.4, 900); tone(140, t, 0.12, "square", 0.12, sfxBus, 70); },
+  flush() { const t = AC.currentTime; noiseHit(t, 0.9, 0.3, 500); tone(700, t, 0.9, "sine", 0.14, sfxBus, 120); tone(1000, t + 0.1, 0.6, "triangle", 0.06, sfxBus, 200); },
   powerEnd() { const t = AC.currentTime; tone(mf(84), t, 0.12, "triangle", 0.1); tone(mf(77), t + 0.1, 0.2, "triangle", 0.1); },
 };
 function sfx(name, arg) { if (AC && soundOn) SFX[name](arg); }
@@ -1667,13 +1715,15 @@ function stepMarble(m, dt) {
   else { ax *= 0.35; az *= 0.35; }
   m.vx += ax * dt; m.vz += az * dt;
   let damp = m.grounded ? 0.42 : 0.04;
+  // bowls are smooth: they keep your momentum, so you swoop down and roll back up the other side (steer to pump higher)
+  if (m.grounded && bowls.some(B => (m.x - B.cx) ** 2 + (m.z - B.cz) ** 2 < B.R * B.R)) damp = BOWL_DAMP;
   // friction patches: rough ground drags, slick ground barely holds you and nudges you along
   const zq = m.grounded ? zoneAt(m.x, m.z) : null;
   if (zq && zq.type === "rough") damp = { syrup: 3.0, marsh: 3.4 }[zq.skin] || 2.4;
   else if (zq && zq.type === "slick") { damp = 0.06; const s0 = Math.hypot(m.vx, m.vz); if (s0 > 1) { m.vx += m.vx / s0 * 3 * dt; m.vz += m.vz / s0 * 3 * dt; } }
   if (zq && m.isPlayer && !state.zoneHints.has(zq.skin)) { state.zoneHints.add(zq.skin); toast({ rough: "Rough patch! It slows you down", slick: "Slick patch! Wheee, extra speed", syrup: "Sticky syrup! Steer round it", marsh: "Marshmallow pit! Squishy and slow" }[zq.skin]); }
   m.vx -= m.vx * damp * dt; m.vz -= m.vz * damp * dt;
-  // Sugar Rush: a higher top speed and a push along the way you're rolling
+  // Candy Comet: a higher top speed and a push along the way you're rolling
   const pow = m.pow && m.pow.type, vmax = pow === "rush" ? 31 : VMAX;
   if (pow === "rush" && m.grounded) { const s0 = Math.hypot(m.vx, m.vz); if (s0 > 1) { m.vx += m.vx / s0 * 14 * dt; m.vz += m.vz / s0 * 14 * dt; } }
   const sp = Math.hypot(m.vx, m.vz); if (sp > vmax) { m.vx *= vmax / sp; m.vz *= vmax / sp; }
@@ -1759,6 +1809,14 @@ function stepMarble(m, dt) {
   for (const p of puddles) {
     if (!shielded && (m.x - p.x) ** 2 + (m.z - p.z) ** 2 < p.r * p.r) { startDissolve(m, p); return; }
   }
+  for (const dr of drains) {
+    const dx = dr.cx - m.x, dz = dr.cz - m.z, d = Math.hypot(dx, dz);
+    if (d > dr.pull || Math.abs(m.y - dr.y) > 1.5) continue;
+    if (d < dr.r) { m.flush = dr; startFall(m); return; }
+    const k = 1 - d / dr.pull, nx = dx / d, nz = dz / d;
+    m.vx += (nx * 13 * k * k + -nz * 5 * k) * dt; m.vz += (nz * 13 * k * k + nx * 5 * k) * dt; // pull in, swirl round
+    if (m.isPlayer && !state.zoneHints.has("drain")) { state.zoneHints.add("drain"); toast("The drain's pulling you in! Steer clear"); }
+  }
 }
 // landing after real air time counts as a trick: more air, a bigger boost; a spin in the air (steering while airborne) adds style
 function landed(m) {
@@ -1817,7 +1875,7 @@ function collectStuff(me, dt) {
       u.mesh.visible = false; u.glow.visible = false; u.back = state.raceT + 6;
       const P = POWERS[u.type]; me.pow = { type: u.type, t: P.secs };
       sfx("power"); burst(u.x, u.y + 1, u.z, new THREE.Color(P.col).getHex(), 18, 5);
-      toast({ rush: "Sugar Rush! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer" }[u.type]);
+      toast({ rush: "Candy Comet! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer" }[u.type]);
     }
   }
   if (me.pow) { me.pow.t -= dt; if (me.pow.t <= 0) { me.pow = null; sfx("powerEnd"); } }
@@ -1831,7 +1889,7 @@ function spawnPoint(m) {
 }
 function respawn(m, at) {
   const [x, z] = at || spawnPoint(m), f = floorAt(x, z);
-  m.x = x; m.z = z; m.y = f + 1.2; m.vx = m.vy = m.vz = 0; m.grounded = false; m.lastGround = f; m.state = "race"; m.scale = 1; m.airT = 0; m.trickSpin = 0;
+  m.x = x; m.z = z; m.y = f + 1.2; m.vx = m.vy = m.vz = 0; m.grounded = false; m.lastGround = f; m.state = "race"; m.scale = 1; m.airT = 0; m.trickSpin = 0; m.flush = null;
   if (m.isPlayer) { state.lastRespawnT = state.raceT; hideGag(); }
 }
 function startFall(m) {
@@ -1840,7 +1898,8 @@ function startFall(m) {
   state.falls++; sfx("fall");
   const since = state.raceT - state.lastRespawnT;
   let kind = "short"; if (!state.firstFallShown) { kind = "long"; state.firstFallShown = true; } else if (since < 8) kind = "tiny";
-  m.timer = { long: 2.4, short: 1.0, tiny: 0.6 }[kind];
+  if (m.flush) { kind = "drain"; sfx("flush"); }
+  m.timer = { long: 2.4, short: 1.0, tiny: 0.6, drain: 1.6 }[kind];
   showGag(kind);
 }
 function startDissolve(m, p) {
@@ -1857,15 +1916,45 @@ function checkCheckpoints(m) {
 
 // ---------- Gag overlays (rescue crew / security guard / puddle) ----------
 const gagEl = $("#gag");
-const AMBULANCE = `<g class="drive"><rect x="120" y="22" width="110" height="52" rx="10" fill="#fff" stroke="#1d1838" stroke-width="4"/><rect x="200" y="32" width="24" height="18" rx="4" fill="#9fe0ff" stroke="#1d1838" stroke-width="3"/><rect x="146" y="38" width="30" height="10" fill="#e8343a"/><rect x="156" y="28" width="10" height="30" fill="#e8343a"/><rect x="160" y="10" width="16" height="12" rx="4" fill="#e8343a" class="blink"/><circle cx="145" cy="78" r="11" fill="#1d1838"/><circle cx="208" cy="78" r="11" fill="#1d1838"/><circle cx="145" cy="78" r="4" fill="#fff"/><circle cx="208" cy="78" r="4" fill="#fff"/></g>`;
-const MEDIC = `<g class="popup"><circle cx="180" cy="40" r="22" fill="#ffd9b8" stroke="#1d1838" stroke-width="4"/><rect x="160" y="14" width="40" height="12" rx="4" fill="#fff" stroke="#1d1838" stroke-width="3"/><rect x="176" y="15" width="8" height="10" fill="#e8343a"/><circle cx="172" cy="40" r="3" fill="#1d1838"/><circle cx="188" cy="40" r="3" fill="#1d1838"/><path d="M170 50 q10 8 20 0" stroke="#1d1838" stroke-width="3" fill="none"/><rect x="150" y="62" width="60" height="30" rx="10" fill="#fff" stroke="#1d1838" stroke-width="4"/><g transform="translate(232 54) rotate(-20)"><rect x="-16" y="-6" width="32" height="12" rx="5" fill="#ffd9a0" stroke="#1d1838" stroke-width="3"/><rect x="-4" y="-6" width="8" height="12" fill="#f3c27a"/></g></g>`;
-const GUARD = `<g class="popup"><circle cx="180" cy="44" r="22" fill="#e0a87c" stroke="#1d1838" stroke-width="4"/><path d="M154 30 h52 l-6 -14 h-40 z" fill="#2d3a8c" stroke="#1d1838" stroke-width="3"/><rect x="170" y="20" width="20" height="6" fill="#ffc93c"/><circle cx="172" cy="44" r="3" fill="#1d1838"/><circle cx="188" cy="44" r="3" fill="#1d1838"/><rect x="190" y="52" width="22" height="8" rx="4" fill="#c0c0c8" stroke="#1d1838" stroke-width="3"/><rect x="150" y="66" width="60" height="26" rx="10" fill="#2d3a8c" stroke="#1d1838" stroke-width="4"/><path d="M216 46 l12 -8 M218 54 l14 0 M216 62 l12 8" stroke="#1d1838" stroke-width="3"/></g>`;
+// The rescue crew: the Booboo Bus (a jelly-bean candy ambulance with a heart, never a cross) and its gummy bear nurse,
+// in blush pink, rose and maroon. Simple glossy shapes, small dark eyes, a calm little smile.
+const HEART = (x, y, s, fill) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 3 C0 -1 -5 -2 -5 1.5 C-5 4.5 0 7 0 9 C0 7 5 4.5 5 1.5 C5 -2 0 -1 0 3 Z" fill="${fill}"/>`;
+const NURSE = (x, y, arm = "") => `<g transform="translate(${x} ${y})">
+  <circle cx="-15" cy="-14" r="8" fill="#f487b6" stroke="#3b1530" stroke-width="3"/><circle cx="15" cy="-14" r="8" fill="#f487b6" stroke="#3b1530" stroke-width="3"/>
+  <ellipse cx="0" cy="36" rx="17" ry="20" fill="#f9a0c8" stroke="#3b1530" stroke-width="3.5"/>
+  <path d="M-15 28 L13 46" stroke="#8a1f4a" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="-17" cy="34" rx="5" ry="8" fill="#f487b6" stroke="#3b1530" stroke-width="3" transform="rotate(20 -17 34)"/>
+  ${arm || `<ellipse cx="17" cy="34" rx="5" ry="8" fill="#f487b6" stroke="#3b1530" stroke-width="3" transform="rotate(-20 17 34)"/>`}
+  <circle cx="0" cy="2" r="20" fill="#fbb0d1" stroke="#3b1530" stroke-width="3.5"/>
+  <ellipse cx="-7" cy="-8" rx="7" ry="3.5" fill="#fff" opacity=".6"/>
+  <ellipse cx="-7" cy="4" rx="2.2" ry="3" fill="#3b1530"/><ellipse cx="7" cy="4" rx="2.2" ry="3" fill="#3b1530"/>
+  <ellipse cx="0" cy="9" rx="2.2" ry="1.6" fill="#8a1f4a"/><path d="M-3 12.5 q3 2.5 6 0" stroke="#8a1f4a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <circle cx="-12" cy="10" r="3" fill="#ff6aa8" opacity=".45"/><circle cx="12" cy="10" r="3" fill="#ff6aa8" opacity=".45"/>
+  <path d="M-11 -15 h22 l-3 -9 h-16 z" fill="#fff6f0" stroke="#3b1530" stroke-width="3" stroke-linejoin="round"/>${HEART(0, -22, 0.7, "#8a1f4a")}
+</g>`;
+const BOOBOO_BUS = `<g class="drive">
+  <rect x="112" y="22" width="122" height="54" rx="26" fill="#ffc2dc" stroke="#3b1530" stroke-width="4"/>
+  <path d="M116 58 h114 v4 a14 14 0 0 1 -14 12 h-86 a14 14 0 0 1 -14 -12 z" fill="#8a1f4a"/>
+  <ellipse cx="150" cy="30" rx="26" ry="5" fill="#fff" opacity=".55"/>
+  <rect x="196" y="30" width="30" height="20" rx="9" fill="#fff6f0" stroke="#3b1530" stroke-width="3"/>
+  ${HEART(152, 37, 1.9, "#8a1f4a")}
+  <circle cx="226" cy="58" r="3.5" fill="#fff36b" stroke="#3b1530" stroke-width="2"/>
+  <rect x="160" y="10" width="18" height="13" rx="6" fill="#fff" stroke="#3b1530" stroke-width="3"/><circle cx="169" cy="16" r="4" fill="#ff4f9a" class="blink"/>
+  <circle cx="140" cy="77" r="11" fill="#3b1530"/><circle cx="208" cy="77" r="11" fill="#3b1530"/><circle cx="140" cy="77" r="4.5" fill="#ffb3d3"/><circle cx="208" cy="77" r="4.5" fill="#ffb3d3"/>
+</g>`;
+// a heart bandage held up in the nurse's paw
+const BANDAGE_ARM = `<g transform="rotate(-35 17 30)"><ellipse cx="17" cy="24" rx="5" ry="9" fill="#f487b6" stroke="#3b1530" stroke-width="3"/></g><g transform="translate(30 -6) rotate(-15)"><rect x="-13" y="-6" width="26" height="12" rx="6" fill="#fff6f0" stroke="#3b1530" stroke-width="2.5"/>${HEART(0, -3.5, 0.6, "#ff4f9a")}</g>`;
+const WAVE_ARM = `<g class="wave"><ellipse cx="22" cy="18" rx="5" ry="9" fill="#f487b6" stroke="#3b1530" stroke-width="3" transform="rotate(30 22 18)"/></g>`;
+const RESCUE_LONG = `<g class="popup">${NURSE(62, 28)}</g>${BOOBOO_BUS}`;
+const RESCUE_SHORT = `<g class="popup">${NURSE(180, 28, BANDAGE_ARM)}</g>`;
+const RESCUE_TINY = `<g class="popup">${NURSE(180, 28, WAVE_ARM)}</g>`;
 const GOO = `<g class="drip" style="transform-origin:180px 30px"><circle cx="180" cy="40" r="26" fill="#ff8fd2" stroke="#1d1838" stroke-width="4"/><path d="M160 58 q-4 18 4 26 M180 64 q0 20 6 24 M198 56 q6 16 2 26" stroke="#e3168f" stroke-width="6" fill="none" stroke-linecap="round"/></g><ellipse cx="180" cy="86" rx="70" ry="8" fill="#e3168f" opacity=".7"/>`;
 function showGag(kind) {
   const c = {
-    long: [AMBULANCE, "Wee-oo! The rescue crew patches you up", "Back to the last checkpoint"],
-    short: [MEDIC, "Quick check-up… all good!", ""],
-    tiny: [GUARD, "Tweet! Back you go.", ""],
+    long: [RESCUE_LONG, "Booboo Bus to the rescue!", "A heart bandage and you're back at the last checkpoint"],
+    short: [RESCUE_SHORT, "One heart bandage… all better!", ""],
+    tiny: [RESCUE_TINY, "Up you pop! Off you go.", ""],
+    drain: [RESCUE_SHORT, "Whoosh! Down the drain", "Fished out and back to the last checkpoint"],
     puddle: [GOO, "Dissolved! Reforming…", `<span class="pen">−${PUDDLE_PENALTY}s</span>`],
   }[kind];
   gagEl.innerHTML = `<svg viewBox="0 0 360 96" aria-hidden="true">${c[0]}</svg><p>${c[1]}</p>${c[2] ? `<p class="small">${c[2]}</p>` : ""}`;
@@ -2272,7 +2361,10 @@ function frame(now) {
         }
       } else if (m.state === "rescue" || m.state === "dissolve") {
         m.timer -= dt;
-        if (m.state === "rescue" && m.timer > 0) { m.vy -= G * dt; m.y = Math.max(m.y + m.vy * dt, -2); m.x += m.vx * dt; m.z += m.vz * dt; }
+        if (m.state === "rescue" && m.flush) { // spiral down the drain, shrinking as it goes
+          const f = m.flush, a = Math.atan2(m.z - f.cz, m.x - f.cx) + dt * 9, r = Math.max(0, Math.hypot(m.x - f.cx, m.z - f.cz) - dt * 1.5);
+          m.x = f.cx + Math.cos(a) * r; m.z = f.cz + Math.sin(a) * r; m.y = (floorAt(m.x, m.z) ?? f.y); m.scale = Math.max(0.05, m.scale - dt * 0.8); m.vx = m.vz = 0;
+        } else if (m.state === "rescue" && m.timer > 0) { m.vy -= G * dt; m.y = Math.max(m.y + m.vy * dt, -2); m.x += m.vx * dt; m.z += m.vz * dt; }
         if (m.state === "dissolve") m.scale = Math.max(0.05, m.timer / 1.1);
         if (m.timer <= 0) respawn(m, m.state === "dissolve" ? m.reform : null);
       }
@@ -2414,7 +2506,7 @@ function buildMenus() {
 }
 
 (async function boot() {
-  try { await Promise.race([Promise.all([document.fonts.load('64px "Bungee"'), document.fonts.load('600 30px "Fredoka"')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
+  try { await Promise.race([Promise.all([document.fonts.load('800 64px "Baloo 2"'), document.fonts.load('600 30px "Fredoka"')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   try { const c = localStorage.getItem("marble-park-course"); if (c && courseUnlocked(courseById(c))) state.courseId = courseById(c).id; } catch (e) { }
   resize(); buildScenery(); loadCourse(state.courseId); buildMenus(); resetRace(); linearize(scene);
   scene.fog.color.convertSRGBToLinear();

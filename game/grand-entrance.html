@@ -1998,7 +1998,9 @@ const state = { phase: "title", online: false, cam: "dynamic", marbleId: "sky", 
 state.courseId = "entrance"; state.completed = new Set();
 try { const done = JSON.parse(localStorage.getItem("marble-park-completed") || "[]"); if (Array.isArray(done)) state.completed = new Set(done); } catch (e) { }
 // a course is open once the one before it has been finished
-const courseUnlocked = c => c.num === 1 || state.completed.has(COURSES[c.num - 2].id);
+// (opening the game with ?all in the address unlocks every board, for reviewing them)
+const UNLOCK_ALL = new URLSearchParams(location.search).has("all");
+const courseUnlocked = c => UNLOCK_ALL || c.num === 1 || state.completed.has(COURSES[c.num - 2].id);
 try { const c = localStorage.getItem("grand-entrance-cam"); if (c) state.cam = c; const m = localStorage.getItem("grand-entrance-marble"); if (m && MARBLES.some(x => x.id === m)) state.marbleId = m; } catch (e) { }
 let marbles = [];
 const keys = {};

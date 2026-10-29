@@ -111,6 +111,8 @@ h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18p
 .course[data-id="lagoon"] { --c1: #c9f3f7; --c2: #1fb8d6; }
 .course[data-id="bigtop"] { --c1: #ffe0c4; --c2: #e8343a; }
 .course[data-id="clouds"] { --c1: #dceeff; --c2: #2d9bff; }
+.course[data-id="beach"] { --c1: #fff0d0; --c2: #e8b46a; }
+.course[data-id="pier"] { --c1: #ffe6d6; --c2: #e8343a; }
 .course .n { grid-row: span 2; font-family: var(--display); font-weight: 800; font-size: 22px; color: #fff; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.75) 0 14%, transparent 15%), var(--c2); box-shadow: inset 0 -4px 0 rgba(0,0,0,.18), 0 0 0 3px #fff; text-shadow: 0 2px 0 rgba(0,0,0,.2); }
 .course b { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--maroon); }
 .course span:last-child { color: var(--muted); font-size: 12.5px; }
@@ -323,7 +325,8 @@ function drawSwatch(cv, d) {
 // A course is built from pieces. Every piece reports a surface height at (x,z) or null;
 // walls are just pieces taller than a marble can step up.
 const pieces = [], holes = [], puddles = [], bumpers = [], pads = [], boosts = [], kickers = [], zones = [], switches = [], gates = [], bowls = [], signs = [], coins = [], pickups = [], drains = [];
-const currents = [], movers = [], zaps = [], waits = [], pipes = [], stunts = [];
+const currents = [], movers = [], zaps = [], waits = [], pipes = [], stunts = [], turntables = [], gulls = [], letters = [];
+let WHEEL = null; // the Giant Wheel's centre, radius and angle(t), for drawing it in step with its cabin
 const decor = { segs: [], rails: [], posts: [] };
 let COURSE = null, TIME_LIMIT = 75, CHECKPOINTS = [], FINISH = null, MAIN = [], LINES = [], TOTAL_ARC = 1, BOTPATH = [], CAMZONES = [];
 
@@ -378,6 +381,7 @@ function pieceH(p, x, z) {
     for (const g of p.gaps) { let d = Math.abs(a - g.a); d = Math.min(d, Math.PI * 2 - d); if (d < g.w) return null; }
     return p.h;
   }
+  if (p.t === "disc") return (x - p.cx) ** 2 + (z - p.cz) ** 2 <= p.R * p.R ? p.h : null;
   if (p.t === "gate") return !p.open && x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1 ? p.h : null;
   return null;
 }
@@ -447,7 +451,15 @@ function zap(cx, cz, r, period = 3.2, phase = 0) { zaps.push({ cx, cz, r, period
 // a gate that opens and shuts on its own: open for `open` seconds of every `period` (the ring of fire)
 function timedGate(id, x0, z0, x1, z1, y, period, open, phase = 0) { const g = gate(id, x0, z0, x1, z1, y); g.cycle = { period, open, phase }; g.fire = true; return g; }
 // a bumper that glides between two points (pool robots, juggling pins)
-function movingBumper(ax, az, bx, bz, period, phase = 0) { bumpers.push({ x: ax, z: az, path: { ax, az, bx, bz, period, phase } }); }
+function movingBumper(ax, az, bx, bz, period, phase = 0, skin) { bumpers.push({ x: ax, z: az, skin, path: { ax, az, bx, bz, period, phase } }); }
+// a bumper riding round a circle (carousel horses, swing-ride chairs, the caterpillar coaster)
+function circlingBumper(cx, cz, r, omega, phase = 0, skin) { bumpers.push({ x: cx + r, z: cz, skin, circle: { cx, cz, r, omega, phase } }); }
+// a spinning floor (carousel, teacups): it drags you round with it, and flings you off the edge
+function turntable(cx, cz, R, h, omega, skin) { pieces.push({ t: "disc", cx, cz, R, h }); turntables.push({ cx, cz, R, h, omega, skin, ang: 0 }); }
+// a seagull that sweeps from x0 to x1 along z, diving low in the middle of its pass: it snatches coins if it catches you
+function seagull(x0, x1, z, period, phase = 0) { gulls.push({ x0, x1, z, period, phase, x: x0, y: 8, low: false, cool: 0 }); }
+// letter blocks on signposts: collect them all in one race for the golden ticket
+function letterBlock(ch, x, z) { letters.push({ ch, x, z }); }
 // computer racers hold still while inside(m) until ready() (waiting for the trapeze or the fire ring)
 function waitFor(inside, ready, slow = 0) { waits.push({ inside, ready, slow }); } // `slow`: once ready, roll on gently
 // a stunt: fly through this box (above height ymin) and you earn a bonus, once per race: the ring of fire, the daredevil leap
@@ -822,6 +834,119 @@ function courseClouds() {
   CAMZONES.push({ x: 0, z: 34, r: 8, k: 0.8 }, { x: 0, z: 54, r: 8, k: 0.8 }, { x: 10, z: 106, r: 10, k: 0.8 }, { x: 10, z: 122, r: 8, k: 0.8 }, { x: 20, z: 154, r: 8, k: 0.8 }, { x: 28, z: 168, r: 8, k: 0.7 }, { x: 28, z: 205, r: 18, k: 0.85 });
 }
 
+// ---- Course 7: Sunny Beach (dune paths with rope rails, a shoreline where waves wash in and out over slick wet sand,
+//      crabs, seagulls that dive to snatch coins, a tide pool, a beach-ball bounce, the lifeguard jump and a ramp up
+//      onto the boardwalk; Sandcastle Shield power-up) ----
+function courseBeach() {
+  startArea(12);
+  // the dune path: rope rails, soft dry sand along the edges
+  route([[0, 5, 12], [0, 18, 11.6], [6, 30, 11.3], [6, 36, 11.14]], 6, "#e8b46a", true);
+  patch("rough", -1.5, 11, 0.6, 4, "drysand"); patch("rough", 7.5, 33, 0.6, 2.6, "drysand");
+  powerup("castle", 0, 9);
+  coinLine([[0, 6], [0, 17], [5.5, 29]]);
+  seagull(-8, 14, 22, 4.2);
+  // the shoreline: waves wash in and out, wet sand is slick, crabs scuttle across, a gull dives
+  const B = table(6, 50, 10, 14, 11.0, -0.01, [6, 3], [6, 3]);
+  current(6, 50, 9, 13, 1, 0, 8, { wave: 4.5 });
+  patch("slick", -0.6, 50, 2.4, 10, "wetsand"); patch("slick", 12.6, 47, 2.4, 6, "wetsand");
+  movingBumper(0, 43, 12, 43, 3.4, 0, "crab"); movingBumper(12, 56, 0, 56, 3.0, 1.2, "crab");
+  seagull(-6, 18, 50, 3.6, 1.0);
+  for (let i = 0; i < 9; i++) coins.push({ x: -1 + (i % 3) * 7, z: 40 + Math.floor(i / 3) * 10 });
+  // the tide pool: a shallow bowl full of pearls
+  route([[6, 64, B.front], [6, 70, 10.7]], 6, "#e8b46a", true);
+  bowl(6, 76, 6, 10.7, 1.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; coins.push({ x: 6 + Math.cos(a) * 3.2, z: 76 + Math.sin(a) * 3.2 }); }
+  // the beach-ball bounce over the tide channel
+  route([[6, 82, 10.7], [6, 90, 10.5]], 6, "#e8b46a", true);
+  pads.push({ x0: 3.9, x1: 8.1, z0: 88.6, z1: 90, dir: [0, 1] });
+  sign(["BEACH BALL", "BOUNCE!"], 1.6, 85, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#1fb8d6", border: "#3b1530" }, 3.0, 1.0, 1.6);
+  for (const [z, y] of [[94.6, 13.7], [97.6, 13.6], [100.6, 12.2]]) coinAir(6, z, y);
+  // the sandcastle beach: more crabs, a gull, a Sandcastle Shield
+  const F = table(6, 110, 8, 10, 10.0, -0.01, null, [6, 3]);
+  movingBumper(0, 106, 12, 106, 2.8, 0, "crab"); movingBumper(12, 113, 0, 113, 3.2, 1.5, "crab");
+  seagull(18, -6, 110, 3.8, 0.5);
+  powerup("castle", 2, 103);
+  coinLine([[1, 102], [1, 116]], 2.2); coinLine([[11, 102], [11, 116]], 2.2);
+  // the lifeguard jump over the sandbar
+  route([[6, 120, F.front], [6, 128, 9.7]], 6, "#e8b46a", true);
+  boost(6, 122.5, 0, 1, 3, 5);
+  ramp(6, 126, 2.1, 4, 1.2);
+  for (const [z, y] of [[130, 11.9], [133, 12.0], [136, 11.6]]) coinAir(6, z, y);
+  route([[6, 133, 9.0], [6, 142, 8.8], [0, 152, 8.6], [0, 156, 8.6]], 7, "#e8b46a", true);
+  // up the ramp onto the boardwalk
+  route([[0, 156, 8.6], [0, 166, 9.6], [0, 182, 9.5]], 8, "#c98e55", true);
+  coinLine([[0, 158], [0, 180]], 2);
+  seagull(-10, 10, 174, 3.4, 0.3);
+  finishArea(0, 188.5, 7, 6.5, 9.5, 186);
+  checkpoint(6, 40, 6, 21.6); checkpoint(6, 68, 3.5, 7.6); checkpoint(6, 104, 6, 17.6); checkpoint(6, 121, 3.5, 7.6); checkpoint(0, 152, 3.5, 8.6);
+  const L = [[0, 5], [0, 18], [6, 30], [6, 36], [6, 64], [6, 70], [6, 82], [6, 90], [6, 100], [6, 120], [6, 128], [6, 133], [6, 142], [0, 152], [0, 156], [0, 166], [0, 182], [0, 190]];
+  setLines([[0, -2], ...L], [], [[0, 1.5], ...L]);
+  CAMZONES.push({ x: 6, z: 50, r: 13, k: 0.5 }, { x: 6, z: 76, r: 7, k: 0.45 }, { x: 6, z: 95, r: 8, k: 0.8 }, { x: 6, z: 131, r: 7, k: 0.7 });
+}
+
+// ---- Course 8: Boardwalk Pier (a tribute to a beloved seaside pier: the castle facade with its arches and letter blocks,
+//      the indoor hall with a spinning carousel, teacups and a caterpillar coaster, the swing ride, the haunted house,
+//      the log flume, and a ride to the top of the Giant Wheel in a ladybug cabin before the big slide down) ----
+function coursePier() {
+  startArea(10);
+  route([[0, 5, 10], [0, 28, 9.86]], 8, "#c98e55", true);
+  seagull(-12, 12, 16, 3.6);
+  coinLine([[0, 7], [0, 26]], 2.2);
+  // the castle facade: a plaza in front of the castle wall, five arches into the hall, a letter block before each
+  table(0, 40, 14, 12, 9.8, -0.005, [0, 4], null);
+  for (const [x0, x1] of [[-14, -11.5], [-8.5, -6.5], [-3.5, -1.5], [1.5, 3.5], [6.5, 8.5], [11.5, 14]]) wall(x0, 51.4, x1, 52.4, 9.74 + 3.2);
+  // (the camera looks down +z, so +x is on your left: the letters run from +x to -x to read left to right)
+  "WONDERLAND".split("").forEach((ch, i) => letterBlock(ch, 10 - (i % 5) * 5, i < 5 ? 43 : 48));
+  sign(["SPELL IT OUT", "FOR A GOLDEN TICKET"], -6.2, 30.4, Math.PI, { w: 512, h: 160, size: 40, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.4, 1.0, 1.6);
+  // the indoor hall: carousel on one side, teacups and the caterpillar coaster on the other
+  const H = table(0, 66, 14, 14, 9.72, -0.005, null, [0, 4]), hy = z => 9.72 - 0.005 * (z - 66);
+  turntable(8, 63, 5, hy(63) + 0.15, 0.8, "carousel");
+  for (let k = 0; k < 3; k++) circlingBumper(8, 63, 3.4, 0.8, k * 2.094, "horse");
+  turntable(-8, 58, 2.4, hy(58) + 0.12, 2.4, "cup"); turntable(-8, 66.5, 2.4, hy(66.5) + 0.12, -2.4, "cup");
+  for (let k = 0; k < 4; k++) circlingBumper(-9, 74.5, 2.2, 1.3, k * 0.6, "caterpillar");
+  coinLine([[0, 55], [0, 77]], 2.2);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; coins.push({ x: 8 + Math.cos(a) * 1.9, z: 63 + Math.sin(a) * 1.9 }); }
+  // out the open back of the hall to the swing ride: time your way between the chairs, or go round
+  route([[0, 80, H.front], [0, 88, 9.56]], 8, "#c98e55", true);
+  const E = table(0, 100, 12, 12, 9.5, -0.005, [0, 4], [0, 4]);
+  bumpers.push({ x: 0, z: 100 });
+  for (let k = 0; k < 8; k++) circlingBumper(0, 100, 6.6, 0.75, k * Math.PI / 4, "chair");
+  coinLine([[-9.5, 92], [-9.5, 107]], 2); coinLine([[9.5, 92], [9.5, 107]], 2);
+  // the haunted house: a dark tunnel with a ghost drifting across it
+  route([[0, 112, E.front], [0, 130, 9.2]], 8, "#6b6387", true);
+  movingBumper(-2.6, 121, 2.6, 121, 2.2, 0, "ghost");
+  coinLine([[0, 114], [0, 128]], 2);
+  // the log flume: a water chute with a current, a steep drop and a splash pool
+  route([[0, 130, 9.2], [0, 142, 8.4], [-8, 152, 7.6], [-8, 158, 7.2], [-8, 166, 4.2]], 7, "#1fb8d6", true, 1.6);
+  current(0, 136, 2.6, 6, 0, 1, 7); current(-8, 155, 2.6, 3, 0, 1, 7);
+  bowl(-8, 172, 6, 4.2, 1.6, [{ a: -Math.PI / 2, hw: 3.5 }, { a: Math.PI / 2, hw: 3 }]);
+  coinLine([[-2.4, 134], [-2.4, 141]], 1.8); coinLine([[2.4, 134], [2.4, 141]], 1.8);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; coins.push({ x: -8 + Math.cos(a) * 3.4, z: 172 + Math.sin(a) * 3.4 }); }
+  // the Giant Wheel: board a ladybug cabin at the bottom, ride it to the top, step off onto the big slide
+  route([[-8, 178, 4.2], [-7, 188.4, 4.2]], 6, "#c98e55", true);
+  rect(-7.1, 193.4, 3.1, 5, 4.2, null, "plaza");
+  wall(-4.5, 188.4, -4, 198.4, 5.4); wall(-10.2, 197.9, -4, 198.4, 5.4);
+  wall(-10.2, 188.4, -9.7, 191.6, 5.4); wall(-10.2, 195.2, -9.7, 198.4, 5.4);
+  const wheelP = 14, wheelAng = t => { const u = ((t % wheelP) + wheelP) % wheelP / wheelP; return 2 * Math.PI * (u - Math.sin(4 * Math.PI * u) / (4 * Math.PI)); };
+  const cabin = mover(1.6, 1.6, t => { const a = wheelAng(t); return [-12, 193.4 + 11 * Math.sin(a), 15.2 - 11 * Math.cos(a)]; }, "ladybug");
+  WHEEL = { cx: -12, cy: 15.2, cz: 193.4, R: 11, ang: wheelAng };
+  const phase = () => ((state.hazT % wheelP) + wheelP) % wheelP / wheelP;
+  waitFor(m => m.x > -10.2 && m.x < -5.5 && m.z > 190.5 && m.z < 196.5 && pieceH(cabin.p, m.x, m.z) === null, () => phase() > 0.975 || phase() < 0.02, 3);
+  waitFor(m => pieceH(cabin.p, m.x, m.z) !== null && Math.abs(pieceH(cabin.p, m.x, m.z) - m.y) < 0.3, () => Math.abs(phase() - 0.5) < 0.025, 3);
+  sign(["RIDE THE", "GIANT WHEEL"], -4.8, 189.6, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.0, 1.0, 1.6);
+  rect(-15.55, 193.4, 2.05, 2.2, 26.2, null, "plaza");
+  // the big slide down from the top of the wheel to the finish
+  route([[-17.6, 193.4, 26.2], [-24, 193.4, 25.6]], 5, "#c98e55", true);
+  route([[-24, 193.4, 25.6], [-30, 205, 21.5], [-24, 217, 17], [-32, 229, 12.5], [-28, 240, 8.5], [-28, 248, 7.5]], 8, "#e8343a", true, 2.0);
+  for (const [x, z] of [[-34, 205], [-20, 217], [-36, 229]]) { coins.push({ x, z }); coins.push({ x: x * 0.98, z: z - 2.2 }); coins.push({ x: x * 0.98, z: z + 2.2 }); }
+  finishArea(-28, 254.5, 7, 6.5, 7.5, 252);
+  checkpoint(0, 18, 4, 9.6); checkpoint(0, 34, 6, 29.6); checkpoint(0, 58, 4, 29.6); checkpoint(0, 94, 6, 25.6); checkpoint(0, 126, 3.5, 9.6); checkpoint(-7, 185, 3.5, 7.6); checkpoint(-20, 193.4, 2.4, 7.6);
+  const tail = [[-24, 193.4], [-30, 205], [-24, 217], [-32, 229], [-28, 240], [-28, 248], [-28, 256]];
+  setLines([[0, -2], [0, 5], [0, 28], [0, 52], [0, 80], [0, 88], [0, 112], [0, 130], [0, 142], [-8, 152], [-8, 166], [-8, 172], [-8, 178], [-7, 188.4], [-8.6, 193.4], [-12, 193.4], [-17.6, 193.4], ...tail], [],
+    [[0, 1.5], [0, 5], [0, 28], [0, 52], [0, 80], [0, 88], [9.5, 94], [9.5, 104], [4, 110], [0, 112], [0, 130], [0, 142], [-8, 152], [-8, 166], [-8, 172], [-8, 178], [-7, 188.4], [-8.6, 193.4], [-12, 193.4], [-15.5, 193.4], ...tail]);
+  CAMZONES.push({ x: 0, z: 46, r: 10, k: 0.4 }, { x: 0, z: 100, r: 12, k: 0.5 }, { x: -12, z: 193, r: 12, k: 0.9 });
+}
+
 // par: a time that takes a clean, quick run (beating it earns a star)
 const COURSES = [
   { id: "entrance", num: 1, name: "Sugar Midway", blurb: "The teaching board: gumdrop bumpers, a syrup spill, the bowl, a cookie jump, Candy Comet and a shortcut switch.", time: 75, par: 25, theme: "midway", bumperSkin: "gumdrop", bumperKick: 5, bumperBounce: 0.55, build: courseEntrance },
@@ -830,12 +955,14 @@ const COURSES = [
   { id: "lagoon", num: 4, name: "Splash Lagoon", blurb: "A twisting water slide, a lazy river that carries you, a wave pool with pool-cleaner robots, and a whirlpool. Grab a Surfboard.", time: 75, par: 26, theme: "splash", bumperSkin: "robot", bumperKick: 6, bumperBounce: 0.6, build: courseLagoon },
   { id: "bigtop", num: 5, name: "Big Top", blurb: "Walk the tightrope, ride the trapeze, jump through the ring of fire, get fired from a cannon, then take the Daredevil Leap over the clown wagons.", time: 100, par: 42, theme: "circus", bumperSkin: "pin", bumperKick: 6, bumperBounce: 0.6, build: courseBigTop },
   { id: "clouds", num: 6, name: "Cloud Bounce", blurb: "Bounce island to island across the sky: lean into the gusts, dodge the thunderclouds, bounce sideways, ride a drifting cloud and chain the bounce clouds to the rainbow slide.", time: 100, par: 38, theme: "sky", bumperKick: 5, bumperBounce: 0.6, build: courseClouds },
+  { id: "beach", num: 7, name: "Sunny Beach", blurb: "Waves wash over the shore, crabs scuttle, seagulls dive for your coins. Bounce a beach ball, jump the lifeguard ramp and climb onto the boardwalk.", time: 85, par: 24, theme: "beach", bumperSkin: "crab", bumperKick: 6, bumperBounce: 0.6, build: courseBeach },
+  { id: "pier", num: 8, name: "Boardwalk Pier", blurb: "Through the castle arches (spell the letters for a golden ticket), round the carousel and teacups, past the swings and the haunted house, down the flume and up the Giant Wheel.", time: 140, par: 68, theme: "pier", bumperKick: 5, bumperBounce: 0.6, build: coursePier },
 ];
 const courseById = id => COURSES.find(c => c.id === id) || COURSES[0];
 function loadCourseData(c) {
-  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains, currents, movers, zaps, waits, pipes, stunts]) a.length = 0;
+  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains, currents, movers, zaps, waits, pipes, stunts, turntables, gulls, letters]) a.length = 0;
   decor.segs = []; decor.rails = []; decor.posts = [];
-  CHECKPOINTS = []; CAMZONES = []; FINISH = null; COURSE = c; TIME_LIMIT = c.time;
+  CHECKPOINTS = []; CAMZONES = []; FINISH = null; COURSE = c; WHEEL = null; TIME_LIMIT = c.time;
   c.build();
 }
 
@@ -1033,6 +1160,13 @@ T.waterFlow = flowTex("rgba(255,255,255,.75)", 9);
 T.windFlow = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = "rgba(255,255,255,.8)"; c.lineWidth = 5; c.lineCap = "round"; for (const [x, y, l] of [[30, 20, 40], [80, 50, 50], [44, 86, 36], [96, 110, 24]]) { c.beginPath(); c.moveTo(x, y + l); c.lineTo(x, y); c.stroke(); c.beginPath(); c.moveTo(x - 8, y + 10); c.lineTo(x, y); c.lineTo(x + 8, y + 10); c.stroke(); } });
 // circus cannon mouth: dark bore inside gold and red rings, with a star (Big Top's launch pad)
 T.cannon = canvasTex(256, 192, (c, w, h) => { c.fillStyle = "#e8343a"; c.fillRect(0, 0, w, h); c.fillStyle = "#ffc93c"; c.beginPath(); c.ellipse(w / 2, h / 2, 110, 82, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = "#3b1530"; c.beginPath(); c.ellipse(w / 2, h / 2, 82, 60, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = "#fff4e2"; c.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 14 : 32; c.lineTo(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); } c.closePath(); c.fill(); });
+// beach: soft dry sand (speckles, drags you) and wet sand (darker, shiny, slick)
+T.drysand = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#f1d39a"; c.fillRect(0, 0, w, h); const r = rng(41); for (let i = 0; i < 260; i++) { c.fillStyle = r() < 0.5 ? "#c99a5a" : "#fff4dc"; c.beginPath(); c.arc(r() * w, r() * h, 1 + r() * 2.2, 0, Math.PI * 2); c.fill(); } c.strokeStyle = "#8a6a3a"; c.lineWidth = 3; c.setLineDash([8, 6]); c.strokeRect(2, 2, w - 4, h - 4); });
+T.wetsand = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#c9a06a"; c.fillRect(0, 0, w, h); c.strokeStyle = "rgba(255,255,255,.65)"; c.lineWidth = 4; for (let y = 14; y < h; y += 26) { c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(w * 0.3, y - 8, w * 0.6, y + 8, w, y); c.stroke(); } });
+// a beach ball: the bounce pad on the beach
+T.beachball = canvasTex(256, 192, (c, w, h) => { c.fillStyle = "#fff4e2"; c.fillRect(0, 0, w, h); const cols = ["#e8343a", "#ffc93c", "#1fb8d6", "#35c759"]; for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? "#ffffff" : cols[(i / 2) % 4]; c.beginPath(); c.moveTo(w / 2, h / 2); c.arc(w / 2, h / 2, 90, i / 8 * Math.PI * 2, (i + 1) / 8 * Math.PI * 2); c.closePath(); c.fill(); } c.strokeStyle = "#3b1530"; c.lineWidth = 6; c.beginPath(); c.arc(w / 2, h / 2, 90, 0, Math.PI * 2); c.stroke(); c.fillStyle = "#ffffff"; c.beginPath(); c.arc(w / 2, h / 2, 14, 0, Math.PI * 2); c.fill(); });
+// the boardwalk: honey planks running across the lane, outlined edges
+T.boardwalk = canvasTex(256, 256, (c, w, h) => { for (let y = 0; y < h; y += 16) { c.fillStyle = (y / 16) % 2 ? "#d9a066" : "#e6b27a"; c.fillRect(0, y, w, 16); c.fillStyle = "rgba(90,50,20,.35)"; c.fillRect(0, y + 14, w, 2); } c.fillStyle = "#3b1530"; c.fillRect(0, 0, 12, h); c.fillRect(w - 12, 0, 12, h); c.fillStyle = "#e8343a"; c.fillRect(12, 0, 8, h); c.fillRect(w - 20, 0, 8, h); });
 // power-up icons: a shape on a coloured disc, outlined, so each reads by shape as well as colour
 const POWERS = {
   rush: { name: "Candy Comet", col: "#ff7a1a", secs: 3 },
@@ -1042,6 +1176,7 @@ const POWERS = {
   surf: { name: "Surfboard", col: "#1fb8d6", secs: 8 },
   spot: { name: "Spotlight", col: "#e0a400", secs: 5 },
   balloon: { name: "Balloon", col: "#ff5fa2", secs: 6 },
+  castle: { name: "Sandcastle Shield", col: "#e8b46a", secs: 8, as: "shield" }, // works like the Bumper Shield, and keeps seagulls off your coins
 };
 function iconTex(type) {
   return canvasTex(128, 128, (c, w, h) => {
@@ -1053,6 +1188,7 @@ function iconTex(type) {
     else if (type === "shield") { c.moveTo(64, 28); c.lineTo(94, 40); c.quadraticCurveTo(92, 82, 64, 100); c.quadraticCurveTo(36, 82, 34, 40); c.closePath(); c.fill(); }
     else if (type === "surf") { c.ellipse(64, 64, 15, 40, 0.6, 0, Math.PI * 2); c.fill(); c.strokeStyle = POWERS.surf.col; c.lineWidth = 5; c.beginPath(); c.moveTo(48, 86); c.lineTo(80, 42); c.stroke(); }
     else if (type === "spot") { c.moveTo(56, 26); c.lineTo(72, 26); c.lineTo(96, 100); c.lineTo(32, 100); c.closePath(); c.globalAlpha = 0.85; c.fill(); c.globalAlpha = 1; c.beginPath(); c.arc(64, 26, 10, 0, Math.PI * 2); c.fill(); }
+    else if (type === "castle") { c.fillRect(36, 60, 56, 36); for (const x of [36, 56, 76]) c.fillRect(x, 48, 16, 14); c.fillRect(56, 34, 16, 26); c.fillStyle = POWERS.castle.col; c.fillRect(58, 78, 12, 18); }
     else if (type === "balloon") { c.ellipse(64, 52, 24, 28, 0, 0, Math.PI * 2); c.fill(); c.lineWidth = 5; c.beginPath(); c.moveTo(64, 80); c.quadraticCurveTo(54, 92, 66, 104); c.stroke(); }
     else { c.moveTo(64, 26); c.lineTo(96, 62); c.lineTo(76, 62); c.lineTo(76, 100); c.lineTo(52, 100); c.lineTo(52, 62); c.lineTo(32, 62); c.closePath(); c.fill(); }
   });
@@ -1118,6 +1254,18 @@ const THEMES = {
     pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#ffffff"; c.fillRect(0, 0, w, h); }),
     hide: ["carousel", "booth", "tent", "tower", "coaster", "swing", "lagoon", "ferris"], noTrees: true,
     bands: ["#7fc8ff", "#ffffff", "#ffd23f", "#ffffff"], lip: [0xffffff, 0x7fc8ff], props: () => skyProps() },
+  // Sunny Beach: sand and sea blue, rope-and-driftwood rails, an ocean beside the course, umbrellas and sandcastles
+  beach: { name: "beach", label: "Sunny Beach", sky: ["#2f9cff", "#8fd6ff", "#e8f8ff", "#fff4e2"], fog: 0xe4f6ff, fogRange: [180, 460], ground: 0xfff0d0, groundMap: "sand", hemi: [0xeaf8ff, 0xffe8bf, 0.6], sun: [0xfff6e0, 1.35], exposure: 0.95,
+    lane: houseLane("#e8b46a", "#1fb8d6"), table: houseTable("#ffe8bf", "#1fb8d6"), tableRepeat: true, stripe: stripeVTex("#c9a06a", "#fff4e2"), curb: 0xb98a55, pad: "beachball",
+    pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#b98a55"; c.fillRect(0, 0, w, h); c.fillStyle = "#8a6a3a"; for (let y = 0; y < h; y += 12) c.fillRect(0, y, w, 2); }),
+    hide: ["carousel", "booth", "tent", "tower", "coaster", "swing", "lagoon"], trees: { cols: [0x2fbf55, 0x4fd66a], trunk: 0xb98a55, shape: "lolly" },
+    bands: ["#8fe8f0", "#fff4e2", "#1fb8d6", "#fff4e2"], lip: [0xfff4e2, 0x1fb8d6], props: () => beachProps() },
+  // Boardwalk Pier: golden-hour light, honey boardwalk planks, red-and-white rails, the white castle and the Giant Wheel
+  pier: { name: "pier", label: "Boardwalk Pier", sky: ["#ff9a6b", "#ffc49a", "#ffe6c8", "#cfe9ff"], fog: 0xffe4cc, fogRange: [180, 470], ground: 0xf3dcaa, groundMap: "sand", hemi: [0xfff0e0, 0xffd29a, 0.6], sun: [0xffe2bc, 1.3], exposure: 0.95,
+    lane: T.boardwalk, table: T.boardwalk, tableRepeat: true, stripe: stripeVTex("#e8343a", "#ffffff"), curb: 0xfff4e2, pipe: canvasTex(256, 64, (c, w, h) => { const cols = ["#3b1530", "#1fb8d6", "#ffffff", "#8fe8f0", "#ffffff", "#1fb8d6", "#3b1530"]; cols.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * w / cols.length, 0, w / cols.length + 1, h); }); }),
+    pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#fff4e2"; c.fillRect(0, 0, w, h); c.fillStyle = "#e8343a"; c.fillRect(0, 0, w, 8); }),
+    hide: ["carousel", "booth", "tent", "tower", "coaster", "swing", "lagoon", "ferris"], noTrees: true,
+    bands: ["#1fb8d6", "#ffffff", "#8fe8f0", "#ffffff"], lip: [0xfff4e2, 0xe8343a], props: () => pierProps() },
   arcade: { name: "arcade", sky: ["#1b1446", "#4b2a8f", "#c64a9a", "#ff8a6b", "#ffc36b"], fog: 0x9a5aa0, hemi: [0xb59cff, 0xff9a6b, 0.55], sun: [0xffb98a, 1.15], exposure: 1.0,
     lane: T.laneNeon, table: T.playfield, tableRepeat: false, stripe: stripeVTex("#ff4fd8", "#ffffff"), curb: 0x3df2ff, pillar: T.pillarNeon, hide: ["carousel", "swing", "booth"], props: () => arcadeProps(), clear: [[40, 58, 13], [36, 18, 10], [-34, 150, 12]] },
 };
@@ -1370,6 +1518,91 @@ function skyProps() {
   for (let i = 0; i < 40; i++) { const x = -90 + r() * 180, z = -30 + r() * 240; if (nearestDist(x, z) < 8) continue; const s = new THREE.Mesh(new THREE.SphereGeometry(5 + r() * 6, 12, 9), puff); s.position.set(x, 1 + r() * 3, z); s.scale.y = 0.45; world.add(s); }
   ["#ff5fa2", "#ff7a1a", "#ffd23f", "#35c759", "#2d9bff", "#8b6cff"].forEach((col, i) => { const a = new THREE.Mesh(new THREE.TorusGeometry(60 - i * 2.2, 1.1, 8, 64, Math.PI), mat({ color: col, emissive: col, emissiveIntensity: 0.25 })); a.position.set(10, -6, 240); world.add(a); });
 }
+// the sea, rolling in beside the beach and the pier
+function oceanProps(x0) {
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 600), new THREE.MeshPhysicalMaterial({ color: 0x29b6d6, roughness: 0.06, clearcoat: 1, transparent: true, opacity: 0.92 }));
+  sea.rotation.x = -Math.PI / 2; sea.position.set(x0 - 200, 0.35, 120); world.add(sea);
+  const tex = rep(T.ripple, 40, 60); const foam = new THREE.Mesh(new THREE.PlaneGeometry(400, 600), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  foam.rotation.x = -Math.PI / 2; foam.position.set(x0 - 200, 0.4, 120); foam.userData.dyn = true; world.add(foam); courseAnims.push(dt => { tex.offset.x += dt * 0.02; });
+}
+function beachProps() {
+  parkSign(["SUNNY", "BEACH"], "#fff4e2", "#1fb8d6", "#1d1838", [0xfff1b0, 0xffc93c, 0x8fe8f0]);
+  oceanProps(-26);
+  const r = rng(53);
+  // striped umbrellas and sandcastles on the sand
+  for (const [x, z, k] of propSpots([[20, 20, 0], [24, 60, 1], [-16, 40, 2], [22, 96, 3], [-14, 110, 0], [24, 140, 1], [16, 170, 2], [-14, 66, 3]], 6)) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4, 6), M.white); pole.position.y = 2; g.add(pole);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1, 16), gloss({ map: stripedTex(["#ffffff", ["#e8343a", "#1fb8d6", "#ffc93c", "#ff7ab8"][k]], 12) })); top.position.y = 4.2; g.add(top);
+  }
+  for (const [x, z] of propSpots([[18, 116], [-12, 92], [20, 46], [-12, 126]], 6)) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g); const sand = mat({ color: 0xe8c48a, roughness: 0.9 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 1.6, 6), sand); base.position.y = 0.8; g.add(base);
+    for (const [tx, tz] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 2.2, 6), sand); t.position.set(tx, 2, tz); g.add(t); }
+    const flag = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.9, 3), gloss({ color: 0xe8343a })); flag.position.set(0.3, 3.4, 0); flag.rotation.z = -Math.PI / 2; g.add(flag);
+  }
+  // the lifeguard tower beside the jump, palms, and the boardwalk with the Giant Wheel on the horizon
+  { const g = new THREE.Group(); g.position.set(13, 0, 126); world.add(g); const wood = mat({ color: 0xfff4e2 });
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 6), wood); leg.position.set(x, 3, z); g.add(leg); }
+    const hut = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2, 2.8), gloss({ color: 0xe8343a })); hut.position.y = 7; g.add(hut);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1.2, 4), gloss({ color: 0xfff4e2 })); roof.position.y = 8.6; roof.rotation.y = Math.PI / 4; g.add(roof); }
+  const leaf = gloss({ color: 0x2fbf55 }), trunk = mat({ color: 0xb98a55 });
+  for (let i = 0; i < 24; i++) { const x = 14 + r() * 40, z = -20 + r() * 220; if (nearestDist(x, z) < 9) continue; const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g); const hgt = 6 + r() * 3; const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, hgt, 7), trunk); t.position.y = hgt / 2; g.add(t); for (let k = 0; k < 6; k++) { const fr = new THREE.Mesh(new THREE.ConeGeometry(0.6, 4, 4), leaf); fr.position.set(Math.cos(k) * 1.6, hgt, Math.sin(k) * 1.6); fr.rotation.z = Math.PI / 2 + 0.4; fr.rotation.y = -k; g.add(fr); } }
+  { const wheel = new THREE.Mesh(new THREE.TorusGeometry(16, 0.6, 8, 64), gloss({ color: 0xffffff })); wheel.position.set(30, 22, 230); world.add(wheel);
+    const bl = []; for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; bl.push(new THREE.Vector3(30 + Math.cos(a) * 16, 22 + Math.sin(a) * 16, 230)); } bulbs(bl, [0xe8343a, 0xfff1b0], 0.5, world); }
+}
+function pierProps() {
+  parkSign(["BOARDWALK", "PIER"], "#fff4e2", "#e8343a", "#1d1838", [0xfff1b0, 0xffc93c, 0xe8343a]);
+  oceanProps(-40);
+  const white = gloss({ color: 0xfaf6f0, roughness: 0.4 }), red = gloss({ color: 0xd8283a }), ink = M.ink;
+  // the castle facade: a long white wall with a row of red-roofed turrets, striped bartizans, red-trimmed arches,
+  // a sea dragon climbing it and a striped lighthouse on the corner (the arches line up with the gaps in the wall)
+  const fz = 51.9, y0 = 9.74;
+  // the wall is built round the five arch openings (x -10, -5, 0, 5, 10, each 3 wide), matching the gaps you roll through
+  const solid = [[-30, -11.5], [-8.5, -6.5], [-3.5, -1.5], [1.5, 3.5], [6.5, 8.5], [11.5, 30]];
+  for (const [a, b] of solid) { const w = new THREE.Mesh(new THREE.BoxGeometry(b - a, 9, 1.2), white); w.position.set((a + b) / 2, y0 + 4.5, fz); w.castShadow = true; world.add(w); }
+  for (const x of [-10, -5, 0, 5, 10]) { const lintel = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 1.2), white); lintel.position.set(x, y0 + 7, fz); world.add(lintel); }
+  for (let x = -29; x <= 29; x += 2.4) { const c = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1, 1.4), white); c.position.set(x, y0 + 9.5, fz); world.add(c); }
+  for (const x of [-26, -20, -14, -7.5, 0, 7.5, 14, 20, 26]) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 4, 16), white); t.position.set(x, y0 + 11, fz + 0.4); world.add(t);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(1.9, 3.6, 16), red); cone.position.set(x, y0 + 14.8, fz + 0.4); cone.castShadow = true; world.add(cone);
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.2), new THREE.MeshBasicMaterial({ color: 0xffe9a8 })); win.position.set(x, y0 + 11.3, fz - 1.12); win.rotation.y = Math.PI; world.add(win);
+  }
+  for (const x of [-23, -17, 17, 23]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.6, 2.4, 12), gloss({ map: rep(stripeVTex("#d8283a", "#faf6f0"), 1, 3) })); b.position.set(x, y0 + 6.5, fz - 0.4); world.add(b); }
+  // arch frames round the five openings (x -10, -5, 0, 5, 10), and the toy-soldier guards at the middle arch
+  for (const x of [-10, -5, 0, 5, 10]) { const a = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.28, 10, 24, Math.PI), red); a.position.set(x, y0 + 3.5, fz - 0.65); world.add(a); for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.5, 0.4), red); p.position.set(x + s * 1.5, y0 + 1.75, fz - 0.65); world.add(p); } }
+  for (const s of [-1, 1]) { const g = new THREE.Group(); g.position.set(s * 2.5, y0, fz - 1.0); world.add(g); const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 1.8, 12), red); coat.position.y = 1.1; g.add(coat); const face = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), gloss({ color: 0xffd9b8 })); face.position.y = 2.3; g.add(face); const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 12), ink); hat.position.y = 3.1; g.add(hat); }
+  { const g = new THREE.Group(); g.position.set(17, y0 + 6, fz - 1.4); world.add(g); const dragonM = gloss({ color: 0x9a6ad8 }); // the sea dragon, climbing the wall
+    for (let k = 0; k < 6; k++) { const seg = new THREE.Mesh(new THREE.SphereGeometry(0.9 - k * 0.1, 12, 10), dragonM); seg.position.set(-k * 0.9, Math.sin(k) * 0.8 - k * 0.5, 0); g.add(seg); }
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.2, 4), gloss({ color: 0x2d9bff })); fin.position.set(0.2, 1, 0); g.add(fin); }
+  { const lh = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2, 16, 20), gloss({ map: rep(stripeVTex("#d8283a", "#faf6f0"), 1, 6) })); lh.position.set(-31, y0 + 8, fz); lh.castShadow = true; world.add(lh);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 1.6, 16), new THREE.MeshBasicMaterial({ color: 0xffe9a8 })); lamp.position.set(-31, y0 + 16.8, fz); world.add(lamp); glow(world, -31, y0 + 16.8, fz, 0xffe9a8, 6); }
+  // the hall: walls and a roof over the rides, open at the back to the park beyond
+  for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.6, 12, 28), white); w.position.set(s * 14.6, y0 + 6, 66); world.add(w); }
+  { const roof = new THREE.Mesh(new THREE.BoxGeometry(30, 0.6, 28), gloss({ color: 0xffe6c8 })); roof.position.set(0, y0 + 12.3, 66); world.add(roof);
+    const bl = []; for (let x = -12; x <= 12; x += 3) for (let z = 55; z <= 77; z += 4.4) bl.push(new THREE.Vector3(x, y0 + 11.8, z)); bulbs(bl, [0xfff1b0, 0xffc93c], 0.22, world); }
+  // the swing ride's canopy above its chairs
+  { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 9, 12), gloss({ map: rep(stripeVTex("#1fb8d6", "#ffffff"), 1, 4) })); pole.position.set(0, 9.5 + 4.5, 100); world.add(pole);
+    const canopy = new THREE.Mesh(new THREE.ConeGeometry(7.4, 2.6, 24), gloss({ map: stripedTex(["#ff7ab8", "#ffffff", "#ffc93c", "#ffffff"], 24) })); canopy.position.set(0, 9.5 + 9.6, 100); world.add(canopy); }
+  // the haunted house: a dark purple tunnel with glowing eyes
+  { const hm = gloss({ color: 0x4a2d6b, side: THREE.DoubleSide }), open = new THREE.MeshBasicMaterial({ visible: false }); // a tunnel: walls and roof, open at both ends and underneath
+    const hh = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 15), [hm, hm, hm, open, open, open]); hh.position.set(0, 9.3 + 4.6, 121); world.add(hh);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(7.4, 4, 4), gloss({ color: 0x2a1840 })); roof.position.set(0, 9.3 + 10.6, 121); roof.rotation.y = Math.PI / 4; world.add(roof);
+    const eyes = []; for (let i = 0; i < 12; i++) eyes.push(new THREE.Vector3((i % 2 ? 1 : -1) * 4.6, 9.6 + 2 + (i % 3) * 1.6, 115 + i)); bulbs(eyes, [0xfff36b, 0x9be15d], 0.18, world); }
+  // the Giant Wheel: a white rim and spokes turning with the cabin you ride, ladybug cabins all round
+  if (WHEEL) {
+    const g = new THREE.Group(); g.position.set(WHEEL.cx, WHEEL.cy, WHEEL.cz); g.userData.dyn = true; world.add(g); fx.wheel = g;
+    for (const off of [-0.9, 0.9]) { const rim = new THREE.Mesh(new THREE.TorusGeometry(WHEEL.R + 1.6, 0.35, 8, 72), white); rim.rotation.y = Math.PI / 2; rim.position.x = off; g.add(rim); }
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, sp = new THREE.Mesh(new THREE.BoxGeometry(0.2, WHEEL.R + 1.6, 0.2), white); sp.position.set(0, Math.cos(a) * (WHEEL.R + 1.6) / 2, Math.sin(a) * (WHEEL.R + 1.6) / 2); sp.rotation.x = a; g.add(sp); }
+    const bl = []; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; bl.push(new THREE.Vector3(1.1, Math.cos(a) * (WHEEL.R + 2), Math.sin(a) * (WHEEL.R + 2))); } bulbs(bl, [0xe8343a, 0xfff1b0], 0.3, g);
+    for (let i = 1; i < 8; i++) { const a = i / 8 * Math.PI * 2, cab = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), gloss({ color: 0xe8343a, side: THREE.DoubleSide })); cab.position.set(0, -Math.cos(a) * WHEEL.R - 0.2, Math.sin(a) * WHEEL.R); g.add(cab); }
+    for (const s of [-1, 1]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, WHEEL.cy + 2, 10), white); leg.position.set(WHEEL.cx + 2.5, (WHEEL.cy + 2) / 2 - 1, WHEEL.cz + s * 5); leg.rotation.x = -s * 0.42; world.add(leg); }
+    // the platform at the top, on a tall post
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 26, 10), white); post.position.set(-15.55, 13, 193.4); world.add(post);
+  }
+  // a small plaque by the start
+  signBoard(["FOR WONDERLAND PIER", "OCEAN CITY NJ 1965-2024"], 5.4, 3, 10, Math.PI, { w: 768, h: 192, size: 50, bg: "#fff4e2", fg: "#3b1530", border: "#e8343a" }, 4.6, 1.15, 1.2);
+}
 // move everything added to the scene since `mark` into one group, registered as a hideable ride
 function wrapRide(name, x, z, r, mark) { const g = new THREE.Group(); for (const o of scene.children.slice(mark)) g.add(o); scene.add(g); RIDES.push({ name, obj: g, x, z, r }); }
 const courseAnims = [];
@@ -1483,7 +1716,7 @@ function buildObjects() {
     m.rotation.x = -Math.PI / 2; m.position.set(p.x, floorAt(p.x, p.z) + 0.12, p.z); m.renderOrder = 1; m.userData.dyn = true; world.add(m); fx.puddleMeshes.push(m);
   }
   bumpers.forEach((b, bi) => {
-    const y = floorAt(b.x, b.z), skin = COURSE.bumperSkin;
+    const y = floorAt(b.x, b.z), skin = b.skin || COURSE.bumperSkin;
     const g = new THREE.Group(); g.position.set(b.x, y, b.z); world.add(g);
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.25, 0.9, 28), mat({ map: rep(T.stripe, 4, 1), roughness: 0.3 })); base.position.y = 0.45; base.castShadow = true; g.add(base);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.16, 10, 32), mat({ color: 0x1d1838, emissive: 0xff7a1a, emissiveIntensity: 0.1 })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.95; g.add(ring);
@@ -1492,6 +1725,28 @@ function buildObjects() {
     let cap;
     if (skin === "gumdrop") { cap = new THREE.Mesh(new THREE.SphereGeometry(1.1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat({ color: candy, emissive: candy, emissiveIntensity: 0.05, roughness: 0.62 })); cap.scale.y = 1.05; }
     else if (skin === "jawbreaker") { cap = new THREE.Mesh(new THREE.SphereGeometry(1.1, 28, 18), gloss({ map: bandsTex(["#e8343a", "#fff4e2", "#2d9bff", "#fff4e2", "#ffc93c", "#fff4e2", "#35c759"]), emissive: 0xffffff, emissiveIntensity: 0.0 })); cap.position.y = 0.55; }
+    else if (skin === "horse") { // carousel horse on a gold pole
+      cap = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 1.7), gloss({ color: [0xfff4e2, 0xff9cc6, 0x8fd0ff][bi % 3] })); body.position.y = 0.9; cap.add(body);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.8, 0.5), body.material); head.position.set(0, 1.4, 0.8); head.rotation.x = -0.4; cap.add(head);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 4, 8), gloss({ color: 0xffd15a, metalness: 0.6 })); pole.position.y = 1.6; cap.add(pole); cap.material = body.material;
+    }
+    else if (skin === "chair") { // swing-ride chair on its chains
+      cap = new THREE.Group(); const seat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 1.2), gloss({ color: [0xff5fa2, 0x2d9bff, 0xffc93c, 0x35c759][bi % 4] })); seat.position.y = 0.6; cap.add(seat);
+      for (const x of [-0.6, 0.6]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 4, 4), M.ink); ch.position.set(x, 2.6, 0); cap.add(ch); } cap.material = seat.material;
+    }
+    else if (skin === "caterpillar") { // a segment of the caterpillar coaster: a green ball with eyes
+      cap = new THREE.Mesh(new THREE.SphereGeometry(1.0, 18, 14), gloss({ color: 0x5fcf5a, emissive: 0xffffff, emissiveIntensity: 0 }));
+      for (const x of [-0.35, 0.35]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), M.ink); e.position.set(x, 0.35, 0.9); cap.add(e); }
+    }
+    else if (skin === "ghost") { // the haunted house ghost
+      cap = new THREE.Mesh(new THREE.SphereGeometry(1.0, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.7), gloss({ color: 0xf4f0ff, emissive: 0xb8a6ff, emissiveIntensity: 0.3, transparent: true, opacity: 0.85 })); cap.scale.y = 1.4;
+      for (const x of [-0.35, 0.35]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), M.ink); e.position.set(x, 0.3, 0.9); cap.add(e); }
+    }
+    else if (skin === "crab") { // a beach crab: red shell, raised claws
+      cap = new THREE.Group(); const shell = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 10), gloss({ color: 0xff5a3c })); shell.scale.set(1.2, 0.55, 0.9); shell.position.y = 0.1; cap.add(shell);
+      for (const sx of [-1, 1]) { const claw = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), shell.material); claw.position.set(sx * 1.1, 0.5, 0.6); claw.scale.set(1, 0.8, 1.3); cap.add(claw); const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), M.ink); eye.position.set(sx * 0.3, 0.6, 0.6); cap.add(eye); }
+      cap.material = shell.material;
+    }
     else if (skin === "robot") { // pool-cleaner robot: a chunky rounded body with headlamp eyes
       cap = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 1.6), gloss({ color: 0xff7a59 })); body.position.y = 0.2; cap.add(body);
       const lid = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), gloss({ color: 0xfff4e2 })); lid.position.y = 0.55; lid.scale.set(1, 0.6, 0.85); cap.add(lid);
@@ -1547,6 +1802,38 @@ function buildObjects() {
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 1; m.userData.dyn = true; world.add(m);
     tex.center.set(0.5, 0.5); courseAnims.push(dt => { tex.rotation -= dt * 2.2; });
   }
+  // spinning floors: a carousel (canopy and hub) or a teacup, rotating with the floor
+  for (const tt of turntables) {
+    const g = new THREE.Group(); g.position.set(tt.cx, tt.h, tt.cz); g.userData.dyn = true; world.add(g);
+    const deck = new THREE.Mesh(new THREE.CylinderGeometry(tt.R, tt.R + 0.1, 0.5, 40), gloss({ map: stripedTex(tt.skin === "cup" ? ["#ff9cc6", "#fff4e2"] : ["#fff4e2", "#e8343a"], 24) })); deck.position.y = -0.25; deck.receiveShadow = true; g.add(deck);
+    if (tt.skin === "carousel") {
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(tt.R + 0.8, 2.6, 24), gloss({ map: stripedTex(["#e8343a", "#fff4e2"], 24) })); roof.position.y = 6.2; g.add(roof);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 5, 16), gloss({ map: rep(stripeVTex("#ffc93c", "#fff4e2"), 1, 4) })); hub.position.y = 2.5; g.add(hub);
+      const bl = []; for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; bl.push(new THREE.Vector3(Math.cos(a) * (tt.R + 0.7), 4.9, Math.sin(a) * (tt.R + 0.7))); } bulbs(bl, [0xfff1b0, 0xffc93c], 0.16, g);
+    } else {
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(tt.R * 0.75, tt.R * 0.55, 1.3, 24, 1, true), gloss({ color: 0x8fd0ff, side: THREE.DoubleSide })); cup.position.set(tt.R * 0.25, 0.65, 0); g.add(cup);
+    }
+    tt.mesh = g;
+  }
+  // seagulls: white body, grey wings that flap, an orange beak, and a shadow on the ground that grows as they dive
+  for (const gl of gulls) {
+    gl.base = floorAtNoHoles((gl.x0 + gl.x1) / 2, gl.z) ?? 0;
+    const g = new THREE.Group(); g.userData.dyn = true; world.add(g);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 10), gloss({ color: 0xffffff })); body.scale.set(1.6, 0.8, 0.8); g.add(body);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.5, 8), gloss({ color: 0xff9a2e })); beak.rotation.z = -Math.PI / 2; beak.position.x = 0.95; g.add(beak);
+    gl.wings = [-1, 1].map(s => { const w = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 1.6), gloss({ color: 0xc3c7d4 })); w.position.z = s * 0.9; g.add(w); return w; });
+    const sh = new THREE.Mesh(new THREE.CircleGeometry(0.9, 20), new THREE.MeshBasicMaterial({ color: 0x3b1530, transparent: true, opacity: 0.25, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.userData.dyn = true; world.add(sh);
+    gl.mesh = g; gl.shadow = sh;
+  }
+  // letter blocks on signposts
+  letters.forEach((L, i) => {
+    L.y = floorAtNoHoles(L.x, L.z) ?? 0;
+    const g = new THREE.Group(); g.position.set(L.x, L.y, L.z); g.userData.dyn = true; world.add(g);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), M.white); post.position.y = 0.7; g.add(post);
+    const tex = textTex([L.ch], { w: 128, h: 128, size: 96, bg: "#ffffff", fg: ["#e8343a", "#2d9bff", "#35c759", "#ff7a1a", "#8b6cff"][i % 5], border: "#3b1530" });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4 })); box.position.y = 1.9; box.castShadow = true; g.add(box);
+    L.mesh = g; L.box = box;
+  });
   // currents: chevrons that drift the way the water (or wind) pushes, drawn on the surface they cover
   fx.flows = [];
   for (const c of currents) {
@@ -1561,6 +1848,12 @@ function buildObjects() {
   // moving platforms (the trapeze): a platform hung from ropes to a pivot high above
   for (const mv of movers) {
     const g = new THREE.Group(); g.userData.dyn = true; world.add(g);
+    if (mv.skin === "ladybug") { // a Giant Wheel cabin: a red ladybug shell with black spots round an open floor
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.3, mv.p.hz * 2), gloss({ color: 0xfff4e2 })); floor.position.y = -0.15; g.add(floor);
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(mv.p.hx * 1.25, 20, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), gloss({ color: 0xe8343a, side: THREE.DoubleSide })); shell.position.y = 0; g.add(shell);
+      for (const [x, z] of [[0.9, 0.9], [-0.9, 0.9], [0.9, -0.9], [-0.9, -0.9], [0, 1.6], [0, -1.6]]) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), M.ink); sp.position.set(x * 1.05, -0.7, z * 1.05); g.add(sp); }
+      mv.mesh = g; continue;
+    }
     if (mv.skin === "cloud") { // a drifting cloud: a flat white top on a heap of puffs
       const top = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.4, mv.p.hz * 2), [M.white, M.white, mat({ map: rep(THEME.table, 1, 1) }), M.white, M.white, M.white]); top.position.y = -0.2; g.add(top);
       const puff = mat({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 1 });
@@ -1879,6 +2172,7 @@ function buildCourseScenery() {
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, q.skin === "syrup" ? gloss({ map: T.syrup, roughness: 0.1, clearcoat: 1, side: THREE.DoubleSide }) : q.skin === "marsh" ? mat({ map: T.marsh, roughness: 0.9, side: THREE.DoubleSide })
+      : q.skin === "drysand" ? mat({ map: T.drysand, roughness: 0.95, side: THREE.DoubleSide }) : q.skin === "wetsand" ? gloss({ map: T.wetsand, roughness: 0.08, clearcoat: 1, side: THREE.DoubleSide })
       : q.type === "rough" ? mat({ map: T.rough, roughness: 0.95, side: THREE.DoubleSide }) : gloss({ map: T.slick, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, side: THREE.DoubleSide }));
     m.receiveShadow = true; m.renderOrder = 1; world.add(m);
   }
@@ -2042,6 +2336,7 @@ const SFX = {
   power() { const t = AC.currentTime; [72, 76, 79, 84, 88].forEach((n, i) => tone(mf(n), t + i * 0.05, 0.16, "triangle", 0.16)); tone(mf(91), t + 0.26, 0.4, "sine", 0.12); },
   trick() { const t = AC.currentTime; noiseHit(t, 0.2, 0.12, 3000); tone(mf(79), t + 0.05, 0.15, "triangle", 0.14); tone(mf(86), t + 0.13, 0.3, "triangle", 0.16); },
   flipper() { const t = AC.currentTime; noiseHit(t, 0.06, 0.4, 900); tone(140, t, 0.12, "square", 0.12, sfxBus, 70); },
+  gull() { const t = AC.currentTime; tone(1500, t, 0.12, "sawtooth", 0.06, sfxBus, 900); tone(1700, t + 0.14, 0.16, "sawtooth", 0.05, sfxBus, 1000); },
   zap() { const t = AC.currentTime; noiseHit(t, 0.25, 0.35, 4000); tone(1800, t, 0.2, "sawtooth", 0.05, sfxBus, 300); },
   flush() { const t = AC.currentTime; noiseHit(t, 0.9, 0.3, 500); tone(700, t, 0.9, "sine", 0.14, sfxBus, 120); tone(1000, t + 0.1, 0.6, "triangle", 0.06, sfxBus, 200); },
   powerEnd() { const t = AC.currentTime; tone(mf(84), t, 0.12, "triangle", 0.1); tone(mf(77), t + 0.1, 0.2, "triangle", 0.1); },
@@ -2101,7 +2396,9 @@ function resetRace(roster) {
   for (const g of gates) { g.open = false; g.timer = 0; }
   for (const c of coins) { c.taken = false; c.x = c.x0; c.z = c.z0; c.y = c.y0; }
   for (const u of pickups) { u.back = 0; if (u.mesh) { u.mesh.visible = true; u.glow.visible = true; } }
-  Object.assign(state, { raceT: 0, hazT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0, stuntsDone: new Set() });
+  Object.assign(state, { raceT: 0, hazT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0, stuntsDone: new Set(), letterCount: 0 });
+  for (const L of letters) { L.taken = false; if (L.mesh) L.mesh.visible = true; }
+  for (const g of gulls) g.cool = 0;
   updateHazards();
   $("#hudPow").hidden = true; powKey = "";
   state.camYaw = 0; camInit = false;
@@ -2136,7 +2433,7 @@ function stepMarble(m, dt) {
   const zq = m.grounded ? zoneAt(m.x, m.z) : null;
   if (zq && zq.type === "rough") damp = { syrup: 3.0, marsh: 3.4 }[zq.skin] || 2.4;
   else if (zq && zq.type === "slick") { damp = 0.06; const s0 = Math.hypot(m.vx, m.vz); if (s0 > 1) { m.vx += m.vx / s0 * 3 * dt; m.vz += m.vz / s0 * 3 * dt; } }
-  if (zq && m.isPlayer && !state.zoneHints.has(zq.skin)) { state.zoneHints.add(zq.skin); toast({ rough: "Rough patch! It slows you down", slick: "Slick patch! Wheee, extra speed", syrup: "Sticky syrup! Steer round it", marsh: "Marshmallow pit! Squishy and slow" }[zq.skin]); }
+  if (zq && m.isPlayer && !state.zoneHints.has(zq.skin)) { state.zoneHints.add(zq.skin); toast({ rough: "Rough patch! It slows you down", slick: "Slick patch! Wheee, extra speed", syrup: "Sticky syrup! Steer round it", marsh: "Marshmallow pit! Squishy and slow", drysand: "Soft sand! It slows you down", wetsand: "Wet sand! Slippery and quick" }[zq.skin]); }
   m.vx -= m.vx * damp * dt; m.vz -= m.vz * damp * dt;
   // Candy Comet: a higher top speed and a push along the way you're rolling
   const pow = m.pow && m.pow.type, vmax = pow === "rush" ? 31 : pow === "surf" ? 28 : VMAX;
@@ -2157,6 +2454,11 @@ function stepMarble(m, dt) {
     if (m.isPlayer) { sfx("zap"); toast("Zapped! Watch for the cloud flickering"); }
   }
   // riding a moving platform
+  if (m.grounded) for (const tt of turntables) {
+    const rx = m.x - tt.cx, rz = m.z - tt.cz; if (rx * rx + rz * rz > tt.R * tt.R || Math.abs(m.y - tt.h) > 0.25) continue;
+    const sx = -tt.omega * rz, sz = tt.omega * rx; m.vx += (sx - m.vx) * 2.5 * dt; m.vz += (sz - m.vz) * 2.5 * dt;
+    if (m.isPlayer && !state.zoneHints.has("spin")) { state.zoneHints.add("spin"); toast("Spinning floor! It swings you round; roll off where you want to go"); }
+  }
   if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25) { m.x += mv.dx; m.z += mv.dz; } }
   const sp = Math.hypot(m.vx, m.vz); if (sp > vmax) { m.vx *= vmax / sp; m.vz *= vmax / sp; }
   const wasAir = !m.grounded;
@@ -2300,6 +2602,9 @@ function updateHazards() {
   const t = state.hazT, cyc = (u, p) => ((u % p) + p) % p;
   for (const k of kickers) { const u = cyc(t + k.phase, k.period); k.warn = u > k.period - 0.7; k.swing = u < 0.3; }
   for (const mv of movers) { const [cx, cz, h] = mv.fn(t); mv.dx = cx - mv.p.cx; mv.dz = cz - mv.p.cz; mv.p.cx = cx; mv.p.cz = cz; mv.p.h = h; }
+  for (const b of bumpers) if (b.circle) { const C = b.circle, a = C.omega * t + C.phase; b.x = C.cx + Math.cos(a) * C.r; b.z = C.cz + Math.sin(a) * C.r; }
+  for (const tt of turntables) tt.ang = tt.omega * t;
+  for (const g of gulls) { const u = (((t + g.phase) % g.period) + g.period) % g.period / g.period; g.x = g.x0 + (g.x1 - g.x0) * u; g.y = 0.9 + 7 * Math.abs(u - 0.5) * 2; g.low = Math.abs(u - 0.5) < 0.18; }
   for (const b of bumpers) if (b.path) { const P = b.path, u = 0.5 - 0.5 * Math.cos((t + P.phase) / P.period * Math.PI * 2); b.x = P.ax + (P.bx - P.ax) * u; b.z = P.az + (P.bz - P.az) * u; }
   for (const zp of zaps) { const u = cyc(t + zp.phase, zp.period); zp.on = u > zp.period - 0.45; zp.warn = u > zp.period - 1.4; }
   for (const g of gates) if (g.cycle) {
@@ -2334,12 +2639,27 @@ function collectStuff(me, dt) {
     if (!u.mesh.visible) { if (state.raceT >= u.back) { u.mesh.visible = true; u.glow.visible = true; } continue; }
     if ((me.x - u.x) ** 2 + (me.z - u.z) ** 2 < 1.3 && Math.abs(me.y - u.y) < 2) {
       u.mesh.visible = false; u.glow.visible = false; u.back = state.raceT + 6;
-      const P = POWERS[u.type]; me.pow = { type: u.type, t: P.secs };
+      const P = POWERS[u.type]; me.pow = { type: P.as || u.type, t: P.secs, name: P.name };
       sfx("power"); burst(u.x, u.y + 1, u.z, new THREE.Color(P.col).getHex(), 18, 5);
-      toast({ rush: "Candy Comet! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer", surf: "Surfboard! Skim the water at top speed", spot: "Spotlight! Everything else slows down", balloon: "Balloon! Float across gaps instead of falling" }[u.type]);
+      toast({ rush: "Candy Comet! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer", castle: "Sandcastle Shield! Crabs, waves and gulls can't touch you", surf: "Surfboard! Skim the water at top speed", spot: "Spotlight! Everything else slows down", balloon: "Balloon! Float across gaps instead of falling" }[u.type]);
     }
   }
   if (me.pow) { me.pow.t -= dt; if (me.pow.t <= 0) { me.pow = null; sfx("powerEnd"); } }
+  // seagulls: a low-flying gull that reaches you snatches up to 3 coins (a shield keeps it off)
+  for (const g of gulls) {
+    g.cool = Math.max(0, g.cool - dt); if (!g.low || g.cool > 0) continue;
+    if (Math.abs(me.x - g.x) > 1.4 || Math.abs(me.z - g.z) > 1.7 || me.y > g.base + g.y + 1.2) continue;
+    g.cool = 2;
+    if (me.pow && me.pow.type === "shield") { toast("The gull bounced off your shield!"); continue; }
+    const n = Math.min(3, state.coins); state.coins -= n; me.vx *= 0.5; me.vz *= 0.5; burst(me.x, me.y + 1, me.z, 0xffffff, 12, 4); sfx("gull");
+    toast(n ? `A seagull snatched ${n} coin${n > 1 ? "s" : ""}!` : "A seagull swooped at you!");
+  }
+  // letter blocks: spell out the whole word in one race for the golden ticket
+  for (const L of letters) if (!L.taken && (me.x - L.x) ** 2 + (me.z - L.z) ** 2 < 1.5 && Math.abs(me.y - L.y) < 2) {
+    L.taken = true; state.letterCount++; sfx("coin", state.letterCount); burst(L.x, L.y + 1, L.z, 0xffc93c, 10, 4);
+    if (state.letterCount === letters.length) { state.coins += 15; me.pow = { type: "rush", t: 4, name: POWERS.rush.name }; sfx("power"); toast("GOLDEN TICKET! You spelled it out: +15 coins and a Candy Comet"); }
+    else toast(`${L.ch}: letter ${state.letterCount} of ${letters.length}`);
+  }
   // stunts: flying through the ring of fire or clearing the daredevil leap pays a bonus, once per race each
   if (!me.grounded) for (const s of stunts) if (!state.stuntsDone.has(s) && me.x >= s.x0 && me.x <= s.x1 && me.z >= s.z0 && me.z <= s.z1 && me.y > s.ymin) {
     state.stuntsDone.add(s); state.coins += s.bonus; sfx("trick"); burst(me.x, me.y + 0.5, me.z, 0xffc93c, 24, 7); toast(`${s.name} +${s.bonus} coins`);
@@ -2522,7 +2842,7 @@ function updateHUD() {
   const t = $("#hudTime"); t.textContent = fmt(state.phase === "count" ? TIME_LIMIT : left); t.classList.toggle("low", left < 15 && state.phase === "race");
   $("#hudCoins").textContent = `${state.coins} of ${coins.length}`;
   const pk = me.pow ? me.pow.type + Math.ceil(me.pow.t * 10) : "";
-  if (pk !== powKey) { powKey = pk; const el = $("#hudPow"); el.hidden = !me.pow; if (me.pow) el.innerHTML = `${POWERS[me.pow.type].name}<i>${me.pow.t.toFixed(1)}s</i>`; }
+  if (pk !== powKey) { powKey = pk; const el = $("#hudPow"); el.hidden = !me.pow; if (me.pow) el.innerHTML = `${me.pow.name || POWERS[me.pow.type].name}<i>${me.pow.t.toFixed(1)}s</i>`; }
   const order = rankOrder();
   const key = order.map(m => m.d.id).join();
   if (key !== standKey) {
@@ -2865,7 +3185,11 @@ function frame(now) {
     if (g.fire) { g.flames.visible = !g.open; g.flames.children.forEach((f, i) => { f.scale.y = 1 + Math.sin(now / 70 + i * 1.7) * 0.25; }); g.mesh.children.forEach(o => { if (o.userData.flameGlow) o.visible = !g.open; }); continue; }
     g.mesh.position.y = lerp(g.mesh.position.y, g.y0 - (g.open ? 2.2 : 0), 1 - Math.exp(-dt * 8)); if (g.plate) g.plate.visible = !g.open;
   }
-  for (const b of bumpers) if (b.path && b.mesh) { b.mesh.position.x = b.x; b.mesh.position.z = b.z; }
+  for (const b of bumpers) if ((b.path || b.circle) && b.mesh) { b.mesh.position.x = b.x; b.mesh.position.z = b.z; if (b.circle) b.mesh.rotation.y = -(b.circle.omega * state.hazT + b.circle.phase); }
+  for (const tt of turntables) if (tt.mesh) tt.mesh.rotation.y = -tt.ang;
+  for (const gl of gulls) if (gl.mesh) { gl.mesh.position.set(gl.x, gl.base + gl.y, gl.z); gl.mesh.rotation.y = gl.x1 > gl.x0 ? 0 : Math.PI; gl.wings.forEach((w, i) => { w.rotation.x = (i ? 1 : -1) * Math.sin(now / 90) * 0.5; }); gl.shadow.position.set(gl.x, gl.base + 0.06, gl.z); gl.shadow.scale.setScalar(gl.low ? 1.3 : 0.6); }
+  for (const L of letters) if (L.mesh) { L.mesh.visible = !L.taken; L.box.rotation.y += dt * 1.5; }
+  if (WHEEL && fx.wheel) fx.wheel.rotation.x = WHEEL.ang(state.hazT);
   for (const mv of movers) if (mv.mesh) {
     mv.mesh.position.set(mv.p.cx, mv.p.h, mv.p.cz);
     if (mv.ropes) { const a = mv.ropes.geometry.attributes.position, P = mv.pivot; [[-1, -1], [1, -1], [-1, 1], [1, 1]].slice(0, 2).forEach(([sx], i) => { a.setXYZ(i * 2, mv.p.cx + sx * mv.p.hx, mv.p.h + 0.1, mv.p.cz); a.setXYZ(i * 2 + 1, P[0] + sx * mv.p.hx, P[1], P[2]); }); a.needsUpdate = true; mv.ropes.geometry.computeBoundingSphere(); }

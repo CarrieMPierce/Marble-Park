@@ -108,6 +108,9 @@ h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18p
 .course { --c1: #ffd1e4; --c2: #ff5fa2; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; text-align: left; border: 3px solid #fff; background: linear-gradient(135deg, #fff 0%, var(--c1) 100%); border-radius: 22px; padding: 10px 12px; cursor: pointer; color: var(--ink); font-size: 14px; box-shadow: 0 0 0 2px #f2d2e0, 0 4px 0 2px #ecc0d3; }
 .course[data-id="bumper"] { --c1: #cfe6ff; --c2: #e8343a; }
 .course[data-id="skate"] { --c1: #e6dcff; --c2: #8b6cff; }
+.course[data-id="lagoon"] { --c1: #c9f3f7; --c2: #1fb8d6; }
+.course[data-id="bigtop"] { --c1: #ffe0c4; --c2: #e8343a; }
+.course[data-id="clouds"] { --c1: #dceeff; --c2: #2d9bff; }
 .course .n { grid-row: span 2; font-family: var(--display); font-weight: 800; font-size: 22px; color: #fff; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.75) 0 14%, transparent 15%), var(--c2); box-shadow: inset 0 -4px 0 rgba(0,0,0,.18), 0 0 0 3px #fff; text-shadow: 0 2px 0 rgba(0,0,0,.2); }
 .course b { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--maroon); }
 .course span:last-child { color: var(--muted); font-size: 12.5px; }
@@ -320,6 +323,7 @@ function drawSwatch(cv, d) {
 // A course is built from pieces. Every piece reports a surface height at (x,z) or null;
 // walls are just pieces taller than a marble can step up.
 const pieces = [], holes = [], puddles = [], bumpers = [], pads = [], boosts = [], kickers = [], zones = [], switches = [], gates = [], bowls = [], signs = [], coins = [], pickups = [], drains = [];
+const currents = [], movers = [], zaps = [], waits = [];
 const decor = { segs: [], rails: [], posts: [] };
 let COURSE = null, TIME_LIMIT = 75, CHECKPOINTS = [], FINISH = null, MAIN = [], LINES = [], TOTAL_ARC = 1, BOTPATH = [], CAMZONES = [];
 
@@ -431,7 +435,21 @@ function bowl(cx, cz, R, rim, depth, gaps, lip = 1.1) {
   pieces.push(b); bowls.push(b);
   pieces.push({ t: "ring", cx, cz, r0: R - 0.5, r1: R + 0.8, h: rim + lip, wall: true, gaps: b.gaps });
 }
-function gate(id, x0, z0, x1, z1, y) { const g = { t: "gate", id, x0, z0, x1, z1, y0: y, h: y + 1.8, open: false, timer: 0, wall: true }; pieces.push(g); gates.push(g); }
+function gate(id, x0, z0, x1, z1, y) { const g = { t: "gate", id, x0, z0, x1, z1, y0: y, h: y + 1.8, open: false, timer: 0, wall: true }; pieces.push(g); gates.push(g); return g; }
+// ---- batch 2 kit: things that move on their own, on the hazard clock ----
+// water and wind: a push in direction (dx,dz) over an axis-aligned area. `wave` swings it back and forth over that
+// many seconds; `gust` [period, seconds on] blows only part of each cycle. Wind also pushes you in the air.
+function current(cx, cz, hx, hz, dx, dz, str, o = {}) { const L = Math.hypot(dx, dz); currents.push({ cx, cz, hx, hz, dx: dx / L, dz: dz / L, str, wave: o.wave || 0, gust: o.gust || null, kind: o.kind || "water", k: 1 }); }
+// a platform that follows fn(t) -> [cx, cz, h]; marbles resting on it ride along
+function mover(hx, hz, fn, skin) { const [cx, cz, h] = fn(0); const p = rect(cx, cz, hx, hz, h, null, "mover"); const mv = { p, fn, skin, dx: 0, dz: 0 }; movers.push(mv); return mv; }
+// a thundercloud: it flickers, then zaps the ground under it every `period` seconds and stuns you for a moment
+function zap(cx, cz, r, period = 3.2, phase = 0) { zaps.push({ cx, cz, r, period, phase, on: false, warn: false }); }
+// a gate that opens and shuts on its own: open for `open` seconds of every `period` (the ring of fire)
+function timedGate(id, x0, z0, x1, z1, y, period, open, phase = 0) { const g = gate(id, x0, z0, x1, z1, y); g.cycle = { period, open, phase }; g.fire = true; return g; }
+// a bumper that glides between two points (pool robots, juggling pins)
+function movingBumper(ax, az, bx, bz, period, phase = 0) { bumpers.push({ x: ax, z: az, path: { ax, az, bx, bz, period, phase } }); }
+// computer racers hold still while inside(m) until ready() (waiting for the trapeze or the fire ring)
+function waitFor(inside, ready, slow = 0) { waits.push({ inside, ready, slow }); } // `slow`: once ready, roll on gently
 function boost(x, z, dx, dz, len = 3, w = 5) { const L = Math.hypot(dx, dz); boosts.push({ x, z, dx: dx / L, dz: dz / L, len, w }); }
 // pinball flippers either side of a gap: every `period` seconds they swing and bat any marble between them
 // (dir -1 = back up the table). Lights flash and the paddles wiggle first, so the timing can be read.
@@ -627,15 +645,140 @@ function courseSkate() {
   CAMZONES.push({ x: 0, z: 52, r: 12, k: 0.45 }, { x: 8, z: 88, r: 9, k: 0.8 }, { x: -8, z: 157, r: 13, k: 0.45 }, { x: 0, z: 30, r: 6, k: 0.5 });
 }
 
+// ---- Course 4: Splash Lagoon (a winding water slide, a lazy river that carries you, a wave pool with pool-cleaner
+//      robots, a whirlpool bowl and a last slide into the finish pool; Surfboard power-up) ----
+function courseLagoon() {
+  startArea(16);
+  route([[0, 5, 16], [0, 14, 15.4]], 6, "#1fb8d6", true);
+  powerup("surf", 0, 10); coinLine([[0, 6], [0, 13]]);
+  // the water slide: a twisting half-pipe chute
+  route([[0, 14, 15.4], [0, 30, 13.0], [8, 42, 11.4], [8, 54, 10.0]], 7, "#1fb8d6", true, 1.6);
+  coinLine([[-2.4, 18], [-2.4, 28]], 2.2); coinLine([[2.4, 18], [2.4, 28]], 2.2); coinLine([[3, 34], [8, 42], [8, 52]], 2);
+  // the lazy river: a wide, gentle channel whose current carries you along (robot cleaners patrol it)
+  route([[8, 54, 10.0], [8, 88, 9.0]], 9, "#1fb8d6", true, 0.7);
+  current(8, 71, 3.6, 16, 0, 1, 9);
+  movingBumper(4.6, 66, 11.4, 66, 3.4); movingBumper(11.4, 76, 4.6, 76, 3.0, 1.2);
+  coinLine([[5.2, 58], [5.2, 82]], 2.4); coinLine([[10.8, 58], [10.8, 82]], 2.4);
+  // the wave pool: waves push you side to side while robots sweep across
+  const wp = table(8, 98, 10, 10, 8.8, -0.02, [8, 4.5], [8, 3.4]);
+  current(8, 98, 8.5, 8, 1, 0, 11, { wave: 4 });
+  movingBumper(1, 95, 15, 95, 4.2); movingBumper(15, 102, 1, 102, 3.6, 1.8);
+  for (let i = 0; i < 8; i++) coins.push({ x: 2 + (i % 4) * 4, z: 91 + Math.floor(i / 4) * 13 });
+  // into the whirlpool: ride the bowl round the drain and out the side
+  route([[8, 108, wp.front], [8, 114, 8.4]], 6, "#1fb8d6", true);
+  bowl(8, 124, 10, 8.4, 3.6, [{ a: -Math.PI / 2, hw: 3 }, { a: 0, hw: 3 }]);
+  drain(8, 124, 1.1, 3.6);
+  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; coins.push({ x: 8 + Math.cos(a) * 7.6, z: 124 + Math.sin(a) * 7.6 }); }
+  route([[18, 124, 8.4], [23, 124, 8.2], [26, 132, 7.9], [26, 146, 7.4]], 6, "#ff7a59", true);
+  powerup("surf", 23, 124);
+  coinLine([[22, 124], [26, 132], [26, 145]], 1.8);
+  // the last slide drops into the finish pool
+  route([[26, 146, 7.4], [26, 160, 5.6]], 7, "#1fb8d6", true, 1.4);
+  finishArea(26, 166.5, 7, 6.5, 5.6, 164);
+  checkpoint(8, 58, 4, 11.6); checkpoint(8, 90, 6, 22.6); checkpoint(8, 112, 3.5, 7.6); checkpoint(26, 140, 3.5, 7.6);
+  setLines([[0, -2], [0, 5], [0, 14], [0, 30], [8, 42], [8, 54], [8, 88], [8, 108], [8, 114], [8, 124], [18, 124], [23, 124], [26, 132], [26, 146], [26, 160], [26, 168]], [],
+    [[0, 1.5], [0, 5], [0, 14], [0, 30], [8, 42], [8, 54], [8, 88], [8, 98], [8, 108], [8, 114], [6.5, 116.6], [1.8, 120.5], [1.6, 126], [4.5, 130.5], [10, 131], [14, 127.5], [18.5, 124], [23, 124], [26, 132], [26, 146], [26, 160], [26, 168]]);
+  CAMZONES.push({ x: 8, z: 98, r: 12, k: 0.55 }, { x: 8, z: 124, r: 12, k: 0.45 }, { x: 8, z: 69, r: 8, k: 0.3 });
+}
+
+// ---- Course 5: Big Top (a tightrope with no rails, a trapeze that carries you over a gap, a ring of fire,
+//      a circus cannon and juggling pins; Spotlight power-up slows everything else down) ----
+function courseBigTop() {
+  startArea(16);
+  route([[0, 5, 16], [0, 16, 15.2]], 6, "#e8343a", true);
+  coinLine([[0, 6], [0, 15]]);
+  // the tightrope: a narrow beam with nothing at the sides
+  route([[0, 16, 15.2], [0, 34, 14.4]], 2.6, "#ffc93c", false);
+  coinLine([[0, 18], [0, 33]], 1.5);
+  sign(["TIGHTROPE!"], -3.4, 15.4, Math.PI, { size: 60, bg: "#ffc93c", fg: "#3b1530" });
+  // platform A, then the trapeze swings over the gap to platform B (ride it; wait for it to come back if you miss it)
+  table(0, 40, 6, 6, 14.3, -0.01, [0, 1.6], [0, 3]);
+  powerup("spot", -3, 39);
+  const swing = mover(2.2, 2.2, t => { const z = 52 - 4.5 * Math.cos(t / 4.2 * Math.PI * 2), q = (z - 52) / 4.5; return [0, z, 14.15 - 1.1 * (1 - q * q)]; });
+  swing.pivot = [0, 27, 52];
+  sign(["WAIT FOR", "THE TRAPEZE"], 3.6, 44.8, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.2, 1.0, 1.6);
+  waitFor(m => m.z > 41.5 && m.z < 46.2 && Math.abs(m.x) < 6, () => { const u = (state.hazT % 4.2) / 4.2; return u > 0.86 || u < 0.03; }, 4);
+  waitFor(m => pieceH(swing.p, m.x, m.z) !== null && Math.abs(pieceH(swing.p, m.x, m.z) - m.y) < 0.3, () => swing.p.cz > 56.1, 3);
+  for (const [z, y] of [[50, 13.7], [52, 13.6], [54, 13.7]]) coinAir(0, z, y + 0.7);
+  table(0, 64, 6, 6, 14.0, -0.02, [0, 3], [0, 3]);
+  // the ring of fire: flames for a while, then a gap to roll through
+  route([[0, 70, 13.88], [0, 82, 13.0], [0, 86, 12.8]], 6, "#e8343a", true);
+  const ring = timedGate("fire", -3, 74.6, 3, 75.4, floorAt(0, 75), 3.4, 1.9);
+  waitFor(m => m.z > 69 && m.z < 74.4 && Math.abs(m.x) < 3, () => { const u = state.hazT % 3.4; return u < 1.1; });
+  coinLine([[0, 77], [0, 81]], 1.4);
+  // the circus cannon fires you over the gap into the juggling ring
+  pads.push({ x0: -2.1, x1: 2.1, z0: 83, z1: 86, dir: [0, 1] });
+  sign(["CANNON!"], -4.2, 81, Math.PI, { size: 66, bg: "#e8343a", fg: "#ffc93c" });
+  for (const [z, y] of [[89, 15.6], [92, 16.0], [95, 15.4]]) coinAir(0, z, y);
+  const C = table(0, 100, 8, 8, 12.4, -0.02, null, [0, 3]);
+  movingBumper(-5.5, 97, 5.5, 97, 3.0); movingBumper(5.5, 103, -5.5, 103, 3.6, 1.5);
+  coinLine([[-6, 94], [6, 94]], 2); coinLine([[-6, 105.5], [6, 105.5]], 2);
+  route([[0, 108, C.front], [0, 116, 11.9], [-8, 126, 11.4], [-8, 136, 11.0]], 6, "#e8343a", true);
+  coinLine([[0, 110], [0, 115], [-8, 126], [-8, 134]], 1.8);
+  finishArea(-8, 142.5, 7, 6.5, 11.0, 140);
+  checkpoint(0, 40, 5, 13.6); checkpoint(0, 64, 5, 13.6); checkpoint(0, 100, 6, 17.6); checkpoint(-8, 130, 3.5, 7.6);
+  setLines([[0, -2], [0, 5], [0, 16], [0, 34], [0, 46], [0, 58], [0, 70], [0, 86], [0, 92], [0, 108], [0, 116], [-8, 126], [-8, 136], [-8, 144]], [],
+    [[0, 1.5], [0, 5], [0, 16], [0, 34], [0, 40], [0, 45], [0, 52], [0, 59], [0, 64], [0, 70], [0, 74], [0, 82], [0, 86], [0, 100], [0, 108], [0, 116], [-8, 126], [-8, 136], [-8, 144]]);
+  CAMZONES.push({ x: 0, z: 52, r: 9, k: 0.7 }, { x: 0, z: 92, r: 9, k: 0.8 }, { x: 0, z: 25, r: 9, k: 0.35 });
+}
+
+// ---- Course 6: Cloud Bounce (floating islands linked by bounce pads, wind gusts that can blow you off,
+//      thunderclouds that zap, a rail-free sky bridge and a double-bounce chain; Balloon power-up) ----
+function courseClouds() {
+  startArea(18);
+  route([[0, 5, 18], [0, 17, 17.4]], 6, "#7fc8ff", true);
+  powerup("balloon", 0, 11); coinLine([[0, 6], [0, 16]]);
+  // island 1 and its bounce pad
+  rect(0, 24, 7, 7, 17.4, "#e0f2ff", "island");
+  pads.push({ x0: -3, x1: 3, z0: 28.5, z1: 31, dir: [0, 1] });
+  for (let i = 0; i < 6; i++) coins.push({ x: -4 + (i % 3) * 4, z: 20 + Math.floor(i / 3) * 4 });
+  for (const [z, y] of [[34, 19.8], [37, 20.2], [40, 19.6]]) coinAir(0, z, y);
+  // island 2: gusts blow across it (they come in bursts; the arrows show which way)
+  rect(0, 44, 7, 7, 16.8, "#e0f2ff", "island");
+  current(0, 44, 7, 4, 1, 0, 9, { kind: "wind", gust: [3, 1.2] });
+  pads.push({ x0: -3, x1: 3, z0: 48.5, z1: 51, dir: [0, 1] });
+  coinLine([[-5, 41], [5, 41]], 2);
+  for (const [z, y] of [[54, 19.2], [57, 19.6], [60, 19.0]]) coinAir(0, z, y);
+  // island 3: a thundercloud parks over the middle
+  rect(0, 64, 7, 7, 16.2, "#e0f2ff", "island");
+  wall(-7, 70.4, -3.1, 71, 17.2); wall(3.1, 70.4, 7, 71, 17.2); // the front corners beside the bridge are walled off
+  zap(0, 64, 3.2, 3.2);
+  powerup("balloon", 5, 66);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; coins.push({ x: Math.cos(a) * 5, z: 64 + Math.sin(a) * 5 }); }
+  // the sky bridge: no rails, and a crosswind halfway along
+  route([[0, 71, 16.2], [0, 80, 15.8], [10, 90, 15.4]], 6, "#7fc8ff", true);
+  route([[10, 90, 15.4], [10, 100, 15.0]], 5, "#ffd23f", false);
+  current(10, 95, 2.5, 5, -1, 0, 9, { kind: "wind", gust: [2.6, 1.0] });
+  coinLine([[0, 73], [0, 79], [9, 89], [10, 99]], 1.8);
+  // the double bounce: a pad at the end of the bridge, a small island with its own pad, then a big island
+  pads.push({ x0: 7.6, x1: 12.4, z0: 97.4, z1: 100, dir: [0, 1] });
+  rect(10, 112, 5, 5, 14.6, "#e0f2ff", "island");
+  pads.push({ x0: 7, x1: 13, z0: 113.5, z1: 116.5, dir: [0, 1] });
+  for (const [z, y] of [[104, 17.2], [121, 17.0], [124, 16.6]]) coinAir(10, z, y);
+  rect(10, 130, 7, 8, 13.8, "#e0f2ff", "island");
+  zap(6, 132, 2.6, 2.8, 1.4); zap(14, 132, 2.6, 2.8, 0);
+  coinLine([[10, 128], [10, 137]], 1.8);
+  route([[10, 138, 13.8], [10, 148, 13.4], [0, 158, 13.0], [0, 166, 12.8]], 6, "#7fc8ff", true);
+  coinLine([[10, 140], [10, 147], [0, 158], [0, 165]], 1.8);
+  finishArea(0, 172.5, 7, 6.5, 12.8, 170);
+  checkpoint(0, 22, 5, 15.6); checkpoint(0, 42, 5, 15.6); checkpoint(0, 62, 5, 15.6); checkpoint(10, 110, 3.5, 11.6); checkpoint(10, 128, 5, 15.6);
+  setLines([[0, -2], [0, 5], [0, 17], [0, 24], [0, 31], [0, 44], [0, 51], [0, 64], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 132], [10, 138], [10, 148], [0, 158], [0, 166], [0, 174]], [],
+    [[0, 1.5], [0, 5], [0, 17], [0, 24], [0, 30], [0, 44], [0, 50], [-3.5, 62], [-3.5, 67], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 116], [10, 132], [10, 138], [10, 148], [0, 158], [0, 166], [0, 174]]);
+  CAMZONES.push({ x: 0, z: 34, r: 8, k: 0.8 }, { x: 0, z: 54, r: 8, k: 0.8 }, { x: 10, z: 106, r: 10, k: 0.8 }, { x: 10, z: 122, r: 8, k: 0.8 });
+}
+
 // par: a time that takes a clean, quick run (beating it earns a star)
 const COURSES = [
   { id: "entrance", num: 1, name: "Sugar Midway", blurb: "The teaching board: gumdrop bumpers, a syrup spill, the bowl, a cookie jump, Candy Comet and a shortcut switch.", time: 75, par: 25, theme: "midway", bumperSkin: "gumdrop", bumperKick: 5, bumperBounce: 0.55, build: courseEntrance },
   { id: "bumper", num: 2, name: "Bumper Boulevard", blurb: "A marble-run tower, two gumball pinball tables, flippers that bat you back, drain holes, Magnet and Bumper Shield.", time: 95, par: 35, theme: "gumball", bumperSkin: "jawbreaker", bumperKick: 10, bumperBounce: 0.9, build: courseBumper },
   { id: "skate", num: 3, name: "Skate Park", blurb: "Frosted half-pipes, a drain bowl that flushes you if you roll too near the bottom, kickers and a gap jump. Steer in the air to spin a trick.", time: 65, par: 22, theme: "frosted", bumperSkin: "donut", bumperKick: 5, bumperBounce: 0.6, build: courseSkate },
+  { id: "lagoon", num: 4, name: "Splash Lagoon", blurb: "A twisting water slide, a lazy river that carries you, a wave pool with pool-cleaner robots, and a whirlpool. Grab a Surfboard.", time: 75, par: 26, theme: "splash", bumperSkin: "robot", bumperKick: 6, bumperBounce: 0.6, build: courseLagoon },
+  { id: "bigtop", num: 5, name: "Big Top", blurb: "Balance on the tightrope, ride the trapeze over the gap, time the ring of fire and get fired from a circus cannon. Spotlight slows the show.", time: 85, par: 33, theme: "circus", bumperSkin: "pin", bumperKick: 6, bumperBounce: 0.6, build: courseBigTop },
+  { id: "clouds", num: 6, name: "Cloud Bounce", blurb: "Bounce from island to island in the sky. Lean into the wind gusts, dodge the thunderclouds and float a gap with a Balloon.", time: 70, par: 22, theme: "sky", bumperKick: 5, bumperBounce: 0.6, build: courseClouds },
 ];
 const courseById = id => COURSES.find(c => c.id === id) || COURSES[0];
 function loadCourseData(c) {
-  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains]) a.length = 0;
+  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains, currents, movers, zaps, waits]) a.length = 0;
   decor.segs = []; decor.rails = []; decor.posts = [];
   CHECKPOINTS = []; CAMZONES = []; FINISH = null; COURSE = c; TIME_LIMIT = c.time;
   c.build();
@@ -829,12 +972,21 @@ T.syrup = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#e08a1e"; c.fillRect
 T.marsh = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#f3e6ee"; c.fillRect(0, 0, w, h); for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { c.fillStyle = "#ffffff"; c.beginPath(); c.arc(x * 32 + 16, y * 32 + 16, 13, 0, Math.PI * 2); c.fill(); c.strokeStyle = "#c9a3b8"; c.lineWidth = 2; c.stroke(); c.fillStyle = "#ff7ab8"; c.beginPath(); c.arc(x * 32 + 16, y * 32 + 16, 3, 0, Math.PI * 2); c.fill(); } });
 // cookie: golden with chocolate chips (the Midway's ramps and bounce pad)
 T.cookie = canvasTex(128, 128, (c, w, h) => { c.fillStyle = "#e3a85a"; c.fillRect(0, 0, w, h); const r = rng(12); for (let i = 0; i < 60; i++) { c.fillStyle = "rgba(180,110,40,.35)"; c.fillRect(r() * w, r() * h, 3, 3); } c.fillStyle = "#4a2410"; for (let i = 0; i < 12; i++) { c.beginPath(); c.arc(r() * w, r() * h, 4 + r() * 3, 0, Math.PI * 2); c.fill(); } c.strokeStyle = "#1d1838"; c.lineWidth = 5; c.strokeRect(0, 0, w, h); });
+// flowing water and wind: soft chevrons on clear, pointing up the texture (they're rotated to the current's direction)
+const flowTex = (col, line) => canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = col; c.lineWidth = line; c.lineCap = "round"; c.lineJoin = "round"; for (const y of [30, 94]) { c.beginPath(); c.moveTo(34, y + 18); c.lineTo(64, y - 6); c.lineTo(94, y + 18); c.stroke(); } });
+T.waterFlow = flowTex("rgba(255,255,255,.75)", 9);
+T.windFlow = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = "rgba(255,255,255,.8)"; c.lineWidth = 5; c.lineCap = "round"; for (const [x, y, l] of [[30, 20, 40], [80, 50, 50], [44, 86, 36], [96, 110, 24]]) { c.beginPath(); c.moveTo(x, y + l); c.lineTo(x, y); c.stroke(); c.beginPath(); c.moveTo(x - 8, y + 10); c.lineTo(x, y); c.lineTo(x + 8, y + 10); c.stroke(); } });
+// circus cannon mouth: dark bore inside gold and red rings, with a star (Big Top's launch pad)
+T.cannon = canvasTex(256, 192, (c, w, h) => { c.fillStyle = "#e8343a"; c.fillRect(0, 0, w, h); c.fillStyle = "#ffc93c"; c.beginPath(); c.ellipse(w / 2, h / 2, 110, 82, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = "#3b1530"; c.beginPath(); c.ellipse(w / 2, h / 2, 82, 60, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = "#fff4e2"; c.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 14 : 32; c.lineTo(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); } c.closePath(); c.fill(); });
 // power-up icons: a shape on a coloured disc, outlined, so each reads by shape as well as colour
 const POWERS = {
   rush: { name: "Candy Comet", col: "#ff7a1a", secs: 3 },
   magnet: { name: "Magnet", col: "#e8343a", secs: 8 },
   shield: { name: "Bumper Shield", col: "#2d9bff", secs: 8 },
   air: { name: "Big Air", col: "#35c759", secs: 8 },
+  surf: { name: "Surfboard", col: "#1fb8d6", secs: 8 },
+  spot: { name: "Spotlight", col: "#e0a400", secs: 5 },
+  balloon: { name: "Balloon", col: "#ff5fa2", secs: 6 },
 };
 function iconTex(type) {
   return canvasTex(128, 128, (c, w, h) => {
@@ -844,6 +996,9 @@ function iconTex(type) {
     if (type === "rush") { for (const x0 of [30, 58]) { c.moveTo(x0, 38); c.lineTo(x0 + 26, 64); c.lineTo(x0, 90); } c.lineWidth = 13; c.stroke(); }
     else if (type === "magnet") { c.lineWidth = 16; c.arc(64, 60, 22, Math.PI, 0, true); c.moveTo(42, 60); c.lineTo(42, 84); c.moveTo(86, 60); c.lineTo(86, 84); c.stroke(); }
     else if (type === "shield") { c.moveTo(64, 28); c.lineTo(94, 40); c.quadraticCurveTo(92, 82, 64, 100); c.quadraticCurveTo(36, 82, 34, 40); c.closePath(); c.fill(); }
+    else if (type === "surf") { c.ellipse(64, 64, 15, 40, 0.6, 0, Math.PI * 2); c.fill(); c.strokeStyle = POWERS.surf.col; c.lineWidth = 5; c.beginPath(); c.moveTo(48, 86); c.lineTo(80, 42); c.stroke(); }
+    else if (type === "spot") { c.moveTo(56, 26); c.lineTo(72, 26); c.lineTo(96, 100); c.lineTo(32, 100); c.closePath(); c.globalAlpha = 0.85; c.fill(); c.globalAlpha = 1; c.beginPath(); c.arc(64, 26, 10, 0, Math.PI * 2); c.fill(); }
+    else if (type === "balloon") { c.ellipse(64, 52, 24, 28, 0, 0, Math.PI * 2); c.fill(); c.lineWidth = 5; c.beginPath(); c.moveTo(64, 80); c.quadraticCurveTo(54, 92, 66, 104); c.stroke(); }
     else { c.moveTo(64, 26); c.lineTo(96, 62); c.lineTo(76, 62); c.lineTo(76, 100); c.lineTo(52, 100); c.lineTo(52, 62); c.lineTo(32, 62); c.closePath(); c.fill(); }
   });
 }
@@ -888,6 +1043,26 @@ const THEMES = {
   frosted: { name: "frosted", label: "Skate Park", sky: ["#8f7bff", "#c4b4ff", "#ffd6f0", "#fff4e2"], fog: 0xf0e4ff, fogRange: [180, 460], ground: 0xdaf3c4, hemi: [0xf4eeff, 0xe8f7d0, 0.65], sun: [0xfff4ec, 1.2], exposure: 0.95,
     lane: houseLane("#8b6cff", "#9be15d"), table: houseTable("#e6dcff", "#9be15d"), tableRepeat: true, stripe: stripeVTex("#c3c7d4", "#f3f4f8"), curb: 0x8b6cff, pipe: T.frostPipe, pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#9be15d"; c.fillRect(0, 0, w, h); c.fillStyle = "#fff"; c.fillRect(0, 0, w, 10); }),
     hide: ["carousel", "swing", "booth", "tent", "lagoon", "coaster", "tower"], trees: { cols: [0x8b6cff, 0x9be15d, 0xff7ab8, 0xffd23f], trunk: 0xffffff, shape: "cone" }, bands: ["#b8a6ff", "#fff4e2", "#c9f08f", "#fff4e2", "#ff9cc6", "#fff4e2"], lip: [0x8b6cff, 0x9be15d], props: () => frostedProps() },
+  // Splash Lagoon: aqua and coral, pool-noodle rails, water-slide chutes, palms and a shallow wave pool
+  splash: { name: "splash", label: "Splash Lagoon", sky: ["#1e9bff", "#6fd0ff", "#dff8ff"], fog: 0xd2f3ff, fogRange: [180, 460], ground: 0xfff1cf, groundMap: "sand", hemi: [0xd8f4ff, 0xffe2b0, 0.55], sun: [0xfff6dc, 1.35], exposure: 0.95,
+    lane: houseLane("#1fb8d6", "#ff7a59"), table: houseTable("#bff2f5", "#1fb8d6"), tableRepeat: true, stripe: stripeVTex("#ff7a59", "#ffd23f"), curb: 0x1fb8d6,
+    pipe: canvasTex(256, 64, (c, w, h) => { const cols = ["#1d1838", "#1fb8d6", "#ffffff", "#8fe8f0", "#ffffff", "#ff7a59", "#ffffff", "#8fe8f0", "#ffffff", "#1fb8d6", "#1d1838"]; cols.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * w / cols.length, 0, w / cols.length + 1, h); }); }),
+    pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#ffffff"; c.fillRect(0, 0, w, h); c.fillStyle = "#1fb8d6"; c.fillRect(0, 0, w, 10); }),
+    hide: ["carousel", "booth", "tent", "tower", "coaster", "swing"], trees: { cols: [0x2fbf55, 0x4fd66a, 0xff7a59], trunk: 0xffffff, shape: "lolly" }, water: 0x29c4d6,
+    bands: ["#1fb8d6", "#ffffff", "#8fe8f0", "#ffffff", "#ff7a59", "#ffffff"], lip: [0xffd23f, 0x1fb8d6], props: () => splashProps() },
+  // Big Top: circus red and gold, gold rails, sawdust ground, a giant striped tent, cannons and podiums
+  circus: { name: "circus", label: "Big Top", sky: ["#ff9a6b", "#ffc49a", "#ffe9cf", "#fff4e2"], fog: 0xffe2c8, fogRange: [170, 440], ground: 0xf3dcaa, groundMap: "sand", hemi: [0xfff0e0, 0xffd29a, 0.6], sun: [0xffe6c8, 1.25], exposure: 0.95,
+    lane: houseLane("#e8343a", "#ffc93c"), table: houseTable("#ffd6d6", "#ffc93c"), tableRepeat: true, stripe: stripeVTex("#ffc93c", "#e8343a"), curb: 0xffc93c, pad: "cannon",
+    pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#e8343a"; c.fillRect(0, 0, w, h); c.fillStyle = "#fff4e2"; for (let y = 0; y < h; y += 16) c.fillRect(0, y, w, 8); }),
+    hide: ["coaster", "lagoon", "tower", "swing", "booth"], trees: { cols: [0xe8343a, 0xffc93c, 0x2d9bff], trunk: 0xfff4e2, shape: "lolly" },
+    bands: ["#e8343a", "#fff4e2", "#ffc93c", "#fff4e2"], lip: [0xffc93c, 0xe8343a], props: () => circusProps() },
+  // Cloud Bounce: sky blue and lemon, rainbow-ribbon rails, floating islands over a sea of cloud
+  sky: { name: "sky", label: "Cloud Bounce", sky: ["#4aa8ff", "#93d0ff", "#dff0ff", "#fff4e2"], fog: 0xeaf6ff, fogRange: [150, 420], ground: 0xf4faff, hemi: [0xffffff, 0xdff1ff, 0.75], sun: [0xfffaf0, 1.2], exposure: 0.95,
+    lane: houseLane("#7fc8ff", "#ffd23f"), table: houseTable("#e8f6ff", "#b8a6ff"), tableRepeat: true, curb: 0xb8a6ff,
+    stripe: canvasTex(16, 96, (c, w, h) => { ["#ff5fa2", "#ff7a1a", "#ffd23f", "#35c759", "#2d9bff", "#8b6cff"].forEach((col, i) => { c.fillStyle = col; c.fillRect(0, i * h / 6, w, h / 6 + 1); }); }),
+    pillar: canvasTex(16, 64, (c, w, h) => { c.fillStyle = "#ffffff"; c.fillRect(0, 0, w, h); }),
+    hide: ["carousel", "booth", "tent", "tower", "coaster", "swing", "lagoon", "ferris"], noTrees: true,
+    bands: ["#7fc8ff", "#ffffff", "#ffd23f", "#ffffff"], lip: [0xffffff, 0x7fc8ff], props: () => skyProps() },
   arcade: { name: "arcade", sky: ["#1b1446", "#4b2a8f", "#c64a9a", "#ff8a6b", "#ffc36b"], fog: 0x9a5aa0, hemi: [0xb59cff, 0xff9a6b, 0.55], sun: [0xffb98a, 1.15], exposure: 1.0,
     lane: T.laneNeon, table: T.playfield, tableRepeat: false, stripe: stripeVTex("#ff4fd8", "#ffffff"), curb: 0x3df2ff, pillar: T.pillarNeon, hide: ["carousel", "swing", "booth"], props: () => arcadeProps(), clear: [[40, 58, 13], [36, 18, 10], [-34, 150, 12]] },
 };
@@ -1084,6 +1259,48 @@ function frostedProps() {
     const cop = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 8, 10), gloss({ color: 0xc3c7d4, metalness: 0.6, roughness: 0.25 })); cop.rotation.z = Math.PI / 2; cop.position.set(0, 8, 0); g.add(cop);
   }
 }
+function splashProps() {
+  parkSign(["SPLASH", "LAGOON"], "#fff4e2", "#1fb8d6", "#1d1838", [0xfff1b0, 0x8fe8f0, 0xff7a59]);
+  lagoonProps(); // palms, umbrellas and a twisting slide tower
+  // inflatable rings bobbing in the wave pool's corners and lazy-river banks
+  const cols = [0xff7a59, 0xffd23f, 0x1fb8d6, 0xff5fa2];
+  for (const [x, z, k] of propSpots([[-8, 70, 0], [24, 66, 1], [-6, 100, 2], [26, 100, 3], [40, 140, 0], [-10, 140, 1]], 4)) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.55, 12, 28), gloss({ map: stripedTex(["#ffffff", "#" + cols[k].toString(16).padStart(6, "0")], 8) })); r.rotation.x = -Math.PI / 2; r.position.set(x, 0.5, z); world.add(r);
+  }
+}
+function circusProps() {
+  parkSign(["BIG", "TOP"], "#fff4e2", "#e8343a", "#1d1838", [0xfff1b0, 0xffc93c, 0xe8343a]);
+  // the big top itself: a giant red-and-cream striped tent beside the course, flags on its peaks
+  for (const [x, z, R, H] of propSpots([[-46, 70, 22, 26], [44, 120, 14, 18]], 16)) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); world.add(g);
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H * 0.45, 32, 1, true), gloss({ map: stripedTex(["#e8343a", "#fff4e2"], 24), side: THREE.DoubleSide, roughness: 0.4 })); wall.position.y = H * 0.225; wall.castShadow = true; g.add(wall);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(R * 1.08, H * 0.6, 32), gloss({ map: stripedTex(["#e8343a", "#fff4e2"], 24), roughness: 0.4 })); roof.position.y = H * 0.45 + H * 0.3; roof.castShadow = true; g.add(roof);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 5, 10), gloss({ color: 0xffc93c })); pole.position.y = H * 0.75 + 2.5; g.add(pole);
+    const flag = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.6, 3), gloss({ color: 0x2d9bff })); flag.position.set(1.3, H * 0.75 + 4.4, 0); flag.rotation.z = Math.PI / 2; g.add(flag);
+    const bl = []; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; bl.push(new THREE.Vector3(Math.cos(a) * R, H * 0.45, Math.sin(a) * R)); } bulbs(bl, [0xfff1b0, 0xffc93c], 0.3, g);
+  }
+  // circus podiums (drums) and a cannon barrel beside the cannon pad
+  const drumCols = [0xe8343a, 0x2d9bff, 0xffc93c, 0x35c759];
+  propSpots([[-14, 30], [14, 46], [-15, 62], [16, 88], [-16, 104], [12, 130], [-22, 140]], 8).forEach(([x, z], i) => {
+    const d = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 2.6, 24), gloss({ map: stripedTex(["#fff4e2", "#" + drumCols[i % 4].toString(16).padStart(6, "0")], 12) })); d.position.set(x, 1.3, z); d.castShadow = true; world.add(d);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.3, 24), gloss({ color: 0xffc93c, metalness: 0.4 })); top.position.set(x, 2.75, z); world.add(top);
+  });
+  const p = pads[0]; if (p) {
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.0, 5, 20, 1, true), gloss({ color: 0x3b1530, side: THREE.DoubleSide })); barrel.rotation.x = Math.PI / 2 - 0.5; barrel.position.set(5.2, (p.y || floorAtNoHoles(0, 84) || 12) + 1.6, (p.z0 + p.z1) / 2 - 1); world.add(barrel);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.3, 10, 24), gloss({ color: 0xffc93c, metalness: 0.5 })); ring.position.copy(barrel.position); ring.rotation.copy(barrel.rotation); ring.rotation.x += Math.PI / 2; world.add(ring);
+  }
+}
+function skyProps() {
+  parkSign(["CLOUD", "BOUNCE"], "#fff4e2", "#2d9bff", "#1d1838", [0xfff1b0, 0xffd23f, 0x8fd0ff]);
+  // every island sits on a puffy cloud
+  const puff = mat({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 1 }), r = rng(31);
+  for (const p of pieces) if (p.kind === "island") {
+    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.SphereGeometry(2.2 + r() * 1.8, 12, 9), puff); s.position.set(p.cx + (r() - 0.5) * p.hx * 2, p.h - 1.6 - r() * 1.2, p.cz + (r() - 0.5) * p.hz * 2); s.scale.y = 0.6; world.add(s); }
+  }
+  // a sea of cloud far below and a rainbow arch on the horizon
+  for (let i = 0; i < 40; i++) { const x = -90 + r() * 180, z = -30 + r() * 240; if (nearestDist(x, z) < 8) continue; const s = new THREE.Mesh(new THREE.SphereGeometry(5 + r() * 6, 12, 9), puff); s.position.set(x, 1 + r() * 3, z); s.scale.y = 0.45; world.add(s); }
+  ["#ff5fa2", "#ff7a1a", "#ffd23f", "#35c759", "#2d9bff", "#8b6cff"].forEach((col, i) => { const a = new THREE.Mesh(new THREE.TorusGeometry(60 - i * 2.2, 1.1, 8, 64, Math.PI), mat({ color: col, emissive: col, emissiveIntensity: 0.25 })); a.position.set(10, -6, 240); world.add(a); });
+}
 // move everything added to the scene since `mark` into one group, registered as a hideable ride
 function wrapRide(name, x, z, r, mark) { const g = new THREE.Group(); for (const o of scene.children.slice(mark)) g.add(o); scene.add(g); RIDES.push({ name, obj: g, x, z, r }); }
 const courseAnims = [];
@@ -1154,6 +1371,7 @@ function buildCourse() {
     if (p.t !== "rect") continue;
     const tilt = -Math.atan(p.gz || 0);
     if (p.wall) { const m = addMesh(new THREE.BoxGeometry(p.hx * 2, 1, p.hz * 2), surf({ map: rep(T.stripe, Math.max(p.hx, p.hz) * 1.2, 1) }), p.cx, p.h - 0.6, p.cz); m.rotation.x = tilt; continue; }
+    if (p.kind === "mover") continue; // drawn (and moved) with the hazards
     if (p.kind === "ramp") { // a wedge whose top is the ramp surface and whose base sinks into the track
       const th = p.rise + 0.8, len = Math.hypot(p.hz * 2, p.rise), skin = p.skin === "cookie" ? T.cookie : THEME.lane;
       const top = surf({ map: rep(skin, 1, len / 3), roughness: 0.3, clearcoat: 0.6 }), side = surf({ map: rep(T.stripe, len, 1) });
@@ -1163,7 +1381,7 @@ function buildCourse() {
     const top = surf({ map: THEME.tableRepeat || p.kind !== "plaza" ? rep(THEME.table, p.hx / 3, p.hz / 3) : rep(THEME.table, 1, 1), roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.06 });
     const side = surf({ map: rep(T.blocks, p.hx / 3, 1) });
     const m = addMesh(new THREE.BoxGeometry(p.hx * 2, 0.8, p.hz * 2), [side, side, top, side, side, side], p.cx, p.h - 0.4, p.cz); m.rotation.x = tilt;
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const x = p.cx + sx * (p.hx - 1), z = p.cz + sz * (p.hz - 1); pillar(x, z, p.h + (p.gz || 0) * (z - p.cz) - 0.8); }
+    if (p.kind !== "island" && p.kind !== "mover") for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const x = p.cx + sx * (p.hx - 1), z = p.cz + sz * (p.hz - 1); pillar(x, z, p.h + (p.gz || 0) * (z - p.cz) - 0.8); }
   }
   // bowls: lathe surface, outer wall, lip blocks with entry/exit gaps
   for (const B of bowls) {
@@ -1205,6 +1423,16 @@ function buildObjects() {
     let cap;
     if (skin === "gumdrop") { cap = new THREE.Mesh(new THREE.SphereGeometry(1.1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat({ color: candy, emissive: candy, emissiveIntensity: 0.05, roughness: 0.62 })); cap.scale.y = 1.05; }
     else if (skin === "jawbreaker") { cap = new THREE.Mesh(new THREE.SphereGeometry(1.1, 28, 18), gloss({ map: bandsTex(["#e8343a", "#fff4e2", "#2d9bff", "#fff4e2", "#ffc93c", "#fff4e2", "#35c759"]), emissive: 0xffffff, emissiveIntensity: 0.0 })); cap.position.y = 0.55; }
+    else if (skin === "robot") { // pool-cleaner robot: a chunky rounded body with headlamp eyes
+      cap = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 1.6), gloss({ color: 0xff7a59 })); body.position.y = 0.2; cap.add(body);
+      const lid = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), gloss({ color: 0xfff4e2 })); lid.position.y = 0.55; lid.scale.set(1, 0.6, 0.85); cap.add(lid);
+      for (const s of [-0.4, 0.4]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff36b })); eye.position.set(s, 0.35, 0.8); cap.add(eye); }
+      cap.material = body.material;
+    }
+    else if (skin === "pin") { // juggling pin: a tall cream bottle shape with red bands
+      const prof = [[0, 0], [0.55, 0.1], [0.75, 0.6], [0.6, 1.3], [0.3, 1.8], [0.4, 2.1], [0.3, 2.35], [0, 2.4]].map(([r, y]) => new THREE.Vector2(r, y));
+      cap = new THREE.Mesh(new THREE.LatheGeometry(prof, 20), gloss({ map: rep(bandsTex(["#fff4e2", "#fff4e2", "#e8343a", "#fff4e2", "#ffc93c", "#fff4e2"]), 1, 1), emissive: 0xffffff, emissiveIntensity: 0 }));
+    }
     else if (skin === "donut") { cap = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.42, 14, 28), gloss({ color: 0xff9cc6, emissive: 0xff9cc6, emissiveIntensity: 0.05 })); cap.rotation.x = Math.PI / 2; cap.position.y = 0.15; }
     else { cap = new THREE.Mesh(new THREE.SphereGeometry(1.05, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat({ color: 0xffc93c, emissive: 0xffc93c, emissiveIntensity: 0.05, roughness: 0.25 })); cap.scale.y = 0.55; }
     cap.position.y += 0.95; cap.castShadow = true; g.add(cap);
@@ -1214,7 +1442,7 @@ function buildObjects() {
   });
   for (const p of pads) {
     const y = floorAt((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2);
-    const m = addMesh(new THREE.BoxGeometry(p.x1 - p.x0, 0.14, p.z1 - p.z0), [M.post, M.post, mat({ map: THEME.pad === "cookie" ? T.cookie : T.pad, roughness: 0.35 }), M.post, M.post, M.post], (p.x0 + p.x1) / 2, y + 0.02, (p.z0 + p.z1) / 2);
+    const m = addMesh(new THREE.BoxGeometry(p.x1 - p.x0, 0.14, p.z1 - p.z0), [M.post, M.post, mat({ map: (THEME.pad && T[THEME.pad]) || T.pad, roughness: 0.35 }), M.post, M.post, M.post], (p.x0 + p.x1) / 2, y + 0.02, (p.z0 + p.z1) / 2);
     p.mesh = m; p.squish = 0; p.y = y; m.userData.dyn = true;
   }
   // candy coins: one instanced mesh, spun and hidden per coin each frame
@@ -1250,6 +1478,36 @@ function buildObjects() {
     const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 1; m.userData.dyn = true; world.add(m);
     tex.center.set(0.5, 0.5); courseAnims.push(dt => { tex.rotation -= dt * 2.2; });
   }
+  // currents: chevrons that drift the way the water (or wind) pushes, drawn on the surface they cover
+  fx.flows = [];
+  for (const c of currents) {
+    const n = 12, pos = [], uv = [], idx = [];
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { const x = c.cx - c.hx + 2 * c.hx * i / n, z = c.cz - c.hz + 2 * c.hz * j / n; pos.push(x, (floorAtNoHoles(x, z) ?? 0) + 0.08, z); uv.push(x / 3, z / 3); }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, d = a + n + 1, e = d + 1; idx.push(a, d, b, b, d, e); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const tex = (c.kind === "wind" ? T.windFlow : T.waterFlow).clone(); tex.needsUpdate = true; tex.center.set(0.5, 0.5); tex.rotation = Math.atan2(-c.dx, c.dz);
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.renderOrder = 2; m.userData.dyn = true; world.add(m); fx.flows.push({ c, tex });
+  }
+  // moving platforms (the trapeze): a platform hung from ropes to a pivot high above
+  for (const mv of movers) {
+    const g = new THREE.Group(); g.userData.dyn = true; world.add(g);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.4, mv.p.hz * 2), [gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a }), gloss({ map: rep(T.stripe, 3, 1) }), gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a })]);
+    deck.position.y = -0.2; deck.castShadow = true; g.add(deck);
+    for (const s of [-1, 1]) { const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, mv.p.hz * 2, 10), gloss({ color: 0xffc93c, metalness: 0.4 })); rim.rotation.x = Math.PI / 2; rim.position.set(s * mv.p.hx, 0.1, 0); g.add(rim); }
+    if (mv.pivot) { const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(new Array(12).fill(0), 3)); mv.ropes = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x3b1530 })); mv.ropes.userData.dyn = true; world.add(mv.ropes); }
+    mv.mesh = g;
+  }
+  // thunderclouds: a dark cloud over a dashed warning ring; it flickers before each zap, and a bolt shows when it strikes
+  for (const zp of zaps) {
+    const y = floorAtNoHoles(zp.cx, zp.cz) ?? 0, g = new THREE.Group(); g.position.set(zp.cx, y, zp.cz); g.userData.dyn = true; world.add(g);
+    zp.mat = mat({ color: 0x6b6387, emissive: 0xfff36b, emissiveIntensity: 0, roughness: 0.9 });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, s = new THREE.Mesh(new THREE.SphereGeometry(1.1 + (k % 2) * 0.4, 12, 8), zp.mat); s.position.set(Math.cos(a) * 1.3, 7.2 + (k % 3) * 0.3, Math.sin(a) * 1.3); s.scale.y = 0.7; g.add(s); }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(zp.r - 0.25, zp.r, 40), new THREE.MeshBasicMaterial({ color: 0x3b1530, transparent: true, opacity: 0.55, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.07; g.add(ring);
+    const bolt = new THREE.Group(); const boltMat = new THREE.MeshBasicMaterial({ color: 0xfff36b });
+    [[0, 6.6, 0.3], [0.5, 4.8, -0.4], [-0.3, 3, 0.4], [0.3, 1.2, -0.3]].forEach(([x, yy, r]) => { const seg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2, 0.25), boltMat); seg.position.set(x, yy, 0); seg.rotation.z = r; bolt.add(seg); });
+    bolt.visible = false; g.add(bolt); zp.bolt = bolt;
+  }
   // flippers: two paddles either side of the gap, warning bulbs at their pivots
   for (const k of kickers) {
     k.y = floorAt(k.cx, k.z); k.paddles = [];
@@ -1282,6 +1540,14 @@ function buildObjects() {
   // gates: striped bars across the track that sink out of the way when open
   for (const G of gates) {
     const w = G.x1 - G.x0, g = new THREE.Group(); g.position.set((G.x0 + G.x1) / 2, G.y0, (G.z0 + G.z1) / 2); world.add(g);
+    if (G.fire) { // the ring of fire: a gold hoop; flames fill it while it's shut (flame shapes, so it reads without colour)
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(w / 2 + 0.3, 0.28, 12, 40), gloss({ color: 0xffc93c, metalness: 0.5, roughness: 0.25 })); hoop.position.y = w / 2 - 0.2; hoop.castShadow = true; g.add(hoop);
+      const flames = new THREE.Group(), fl = [0xff7a1a, 0xffc93c, 0xe8343a];
+      for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.6 + (i % 3) * 0.5, 8), new THREE.MeshBasicMaterial({ color: fl[i % 3] })); f.position.set(-w / 2 + 0.5 + i * (w - 1) / 8, 0.8, 0); flames.add(f); }
+      g.add(flames); G.flames = flames; G.mesh = g; g.userData.dyn = true;
+      glow(g, 0, 1.2, 0, 0xff7a1a, 4).userData.flameGlow = true;
+      continue;
+    }
     // a locked gate, not a bumper: solid maroon bars and a sign telling you how to open it
     const barMat = gloss({ color: 0x8a1f4a }), n = Math.max(3, Math.round(w / 0.9));
     for (let i = 0; i < n; i++) { const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.7, 10), barMat); bar.position.set(-w / 2 + 0.3 + i * (w - 0.6) / (n - 1), 0.85, 0); bar.castShadow = true; g.add(bar); }
@@ -1701,6 +1967,7 @@ const SFX = {
   power() { const t = AC.currentTime; [72, 76, 79, 84, 88].forEach((n, i) => tone(mf(n), t + i * 0.05, 0.16, "triangle", 0.16)); tone(mf(91), t + 0.26, 0.4, "sine", 0.12); },
   trick() { const t = AC.currentTime; noiseHit(t, 0.2, 0.12, 3000); tone(mf(79), t + 0.05, 0.15, "triangle", 0.14); tone(mf(86), t + 0.13, 0.3, "triangle", 0.16); },
   flipper() { const t = AC.currentTime; noiseHit(t, 0.06, 0.4, 900); tone(140, t, 0.12, "square", 0.12, sfxBus, 70); },
+  zap() { const t = AC.currentTime; noiseHit(t, 0.25, 0.35, 4000); tone(1800, t, 0.2, "sawtooth", 0.05, sfxBus, 300); },
   flush() { const t = AC.currentTime; noiseHit(t, 0.9, 0.3, 500); tone(700, t, 0.9, "sine", 0.14, sfxBus, 120); tone(1000, t + 0.1, 0.6, "triangle", 0.06, sfxBus, 200); },
   powerEnd() { const t = AC.currentTime; tone(mf(84), t, 0.12, "triangle", 0.1); tone(mf(77), t + 0.1, 0.2, "triangle", 0.1); },
 };
@@ -1757,7 +2024,8 @@ function resetRace(roster) {
   for (const g of gates) { g.open = false; g.timer = 0; }
   for (const c of coins) { c.taken = false; c.x = c.x0; c.z = c.z0; c.y = c.y0; }
   for (const u of pickups) { u.back = 0; if (u.mesh) { u.mesh.visible = true; u.glow.visible = true; } }
-  Object.assign(state, { raceT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0 });
+  Object.assign(state, { raceT: 0, hazT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0 });
+  updateHazards();
   $("#hudPow").hidden = true; powKey = "";
   state.camYaw = 0; camInit = false;
   $("#hudCp").textContent = "Start";
@@ -1773,8 +2041,9 @@ function grad(x, z, y) {
 }
 function stepMarble(m, dt) {
   let ax = m.inx * (m.isPlayer ? ACC : ACC * 0.92), az = m.inz * (m.isPlayer ? ACC : ACC * 0.92);
+  if (m.stun > 0) { m.stun -= dt; ax = az = 0; } // zapped: no steering for a moment
   if (m.grounded) { const g = grad(m.x, m.z, m.y); ax -= G * g[0]; az -= G * g[1]; }
-  else { ax *= 0.35; az *= 0.35; }
+  else { const k = m.pow && m.pow.type === "balloon" ? 0.8 : 0.35; ax *= k; az *= k; }
   m.vx += ax * dt; m.vz += az * dt;
   let damp = m.grounded ? 0.42 : 0.04;
   // bowls are smooth: they keep your momentum, so you swoop down and roll back up the other side (steer to pump higher)
@@ -1786,8 +2055,25 @@ function stepMarble(m, dt) {
   if (zq && m.isPlayer && !state.zoneHints.has(zq.skin)) { state.zoneHints.add(zq.skin); toast({ rough: "Rough patch! It slows you down", slick: "Slick patch! Wheee, extra speed", syrup: "Sticky syrup! Steer round it", marsh: "Marshmallow pit! Squishy and slow" }[zq.skin]); }
   m.vx -= m.vx * damp * dt; m.vz -= m.vz * damp * dt;
   // Candy Comet: a higher top speed and a push along the way you're rolling
-  const pow = m.pow && m.pow.type, vmax = pow === "rush" ? 31 : VMAX;
+  const pow = m.pow && m.pow.type, vmax = pow === "rush" ? 31 : pow === "surf" ? 28 : VMAX;
   if (pow === "rush" && m.grounded) { const s0 = Math.hypot(m.vx, m.vz); if (s0 > 1) { m.vx += m.vx / s0 * 14 * dt; m.vz += m.vz / s0 * 14 * dt; } }
+  // currents (water) and gusts (wind, which reaches you in the air too); a Surfboard skims water instead of being pushed
+  for (const c of currents) {
+    if ((!m.grounded && c.kind !== "wind") || Math.abs(m.x - c.cx) > c.hx || Math.abs(m.z - c.cz) > c.hz) continue;
+    const k = c.wave ? Math.sin(state.hazT / c.wave * Math.PI * 2) : c.gust ? ((state.hazT % c.gust[0]) < c.gust[1] ? 1 : 0) : 1;
+    if (pow === "surf" && c.kind === "water") { const s0 = Math.hypot(m.vx, m.vz) || 1; m.vx += m.vx / s0 * 10 * dt; m.vz += m.vz / s0 * 10 * dt; continue; }
+    m.vx += c.dx * c.str * k * dt; m.vz += c.dz * c.str * k * dt;
+    const hint = c.wave ? "wave" : c.kind;
+    if (m.isPlayer && k && !state.zoneHints.has(hint)) { state.zoneHints.add(hint); toast({ water: "The current carries you along!", wave: "Waves! They push you side to side", wind: "Wind gust! Lean into it" }[hint]); }
+  }
+  // thunderclouds: a zap stops you dead for a moment (a Bumper Shield shrugs it off)
+  if (m.grounded && !(m.stun > 0) && pow !== "shield") for (const zp of zaps) {
+    if (!zp.on || (m.x - zp.cx) ** 2 + (m.z - zp.cz) ** 2 > zp.r * zp.r) continue;
+    m.stun = 0.8; m.vx *= 0.15; m.vz *= 0.15; burst(m.x, m.y + 0.6, m.z, 0xfff36b, 14, 5);
+    if (m.isPlayer) { sfx("zap"); toast("Zapped! Watch for the cloud flickering"); }
+  }
+  // riding a moving platform
+  if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25) { m.x += mv.dx; m.z += mv.dz; } }
   const sp = Math.hypot(m.vx, m.vz); if (sp > vmax) { m.vx *= vmax / sp; m.vz *= vmax / sp; }
   const wasAir = !m.grounded;
   if (m.grounded) {
@@ -1805,6 +2091,8 @@ function stepMarble(m, dt) {
     else { m.slopeVy = (f - m.y) / dt; m.y = f; m.lastGround = f; }
   } else {
     m.vy -= G * (pow === "air" ? 0.62 : 1) * dt; m.airT += dt; // Big Air: floatier jumps
+    // Balloon: over open air you float level instead of dropping, so you can drift across a gap
+    if (pow === "balloon" && m.vy < 0 && m.y <= m.lastGround + 0.05 && floorAt(m.x, m.z) === null) { m.vy = 0; m.y = m.lastGround; }
     const nx = m.x + m.vx * dt, nz = m.z + m.vz * dt, ny = m.y + m.vy * dt, f = floorAt(nx, nz);
     if (f !== null && ny <= f) {
       if (m.y >= f - STEP) {
@@ -1859,7 +2147,7 @@ function stepMarble(m, dt) {
     if (m.x >= p.x0 && m.x <= p.x1 && m.z >= p.z0 && m.z <= p.z1) {
       const along = m.vx * p.dir[0] + m.vz * p.dir[1], s = clamp(along, 12, 15);
       const lx = m.vx - along * p.dir[0], lz = m.vz - along * p.dir[1];
-      m.vx = p.dir[0] * s + lx * 0.5; m.vz = p.dir[1] * s + lz * 0.5; m.vy = 11.5; m.grounded = false; m.y += 0.05;
+      m.vx = p.dir[0] * s + lx * 0.25; m.vz = p.dir[1] * s + lz * 0.25; m.vy = 11.5; m.grounded = false; m.y += 0.05;
       p.squish = 0.3; sfx("pad"); burst(m.x, m.y + 0.3, m.z, 0x2d7ff9, 12, 4);
       if (m.isPlayer) toast("Boing!");
     }
@@ -1920,11 +2208,33 @@ function collideMarbles() {
   }
 }
 
+// ---------- Hazard clock ----------
+// Everything that moves on its own (flippers, platforms, moving bumpers, clouds, the fire ring) runs on one clock,
+// stepped with the physics. A Spotlight slows that clock for you, so the world goes slow-motion for a moment.
+const hazardRate = () => { const me = marbles[0]; return me && me.pow && me.pow.type === "spot" ? 0.4 : 1; };
+function updateHazards() {
+  const t = state.hazT, cyc = (u, p) => ((u % p) + p) % p;
+  for (const k of kickers) { const u = cyc(t + k.phase, k.period); k.warn = u > k.period - 0.7; k.swing = u < 0.3; }
+  for (const mv of movers) { const [cx, cz, h] = mv.fn(t); mv.dx = cx - mv.p.cx; mv.dz = cz - mv.p.cz; mv.p.cx = cx; mv.p.cz = cz; mv.p.h = h; }
+  for (const b of bumpers) if (b.path) { const P = b.path, u = 0.5 - 0.5 * Math.cos((t + P.phase) / P.period * Math.PI * 2); b.x = P.ax + (P.bx - P.ax) * u; b.z = P.az + (P.bz - P.az) * u; }
+  for (const zp of zaps) { const u = cyc(t + zp.phase, zp.period); zp.on = u > zp.period - 0.45; zp.warn = u > zp.period - 1.4; }
+  for (const g of gates) if (g.cycle) {
+    const u = cyc(t + g.cycle.phase, g.cycle.period), want = u < g.cycle.open;
+    // never shut on a marble that's passing through
+    if (want !== g.open && (want || !marbles.some(m => m.x > g.x0 - R && m.x < g.x1 + R && m.z > g.z0 - R && m.z < g.z1 + R))) g.open = want;
+  }
+}
+
 // ---------- Coins and power-ups ----------
 // Each device collects for its own marble only, so online every player gets the full set of coins to chase.
 const coinDummy = new THREE.Object3D();
 const shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(R * 1.7, 24, 16), new THREE.MeshPhysicalMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.28, roughness: 0.05, clearcoat: 1, depthWrite: false, emissive: 0x2d9bff, emissiveIntensity: 0.3 }));
 shieldMesh.visible = false; shieldMesh.renderOrder = 4; scene.add(shieldMesh);
+// the Balloon power-up: a pink balloon on a string, tied to your marble
+const balloonMesh = new THREE.Group();
+{ const b = new THREE.Mesh(new THREE.SphereGeometry(0.75, 18, 14), gloss({ color: 0xff5fa2, roughness: 0.2 })); b.scale.y = 1.2; b.position.y = 2.4; balloonMesh.add(b);
+  const str = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.5, 4), mat({ color: 0x3b1530 })); str.position.y = 1.2; balloonMesh.add(str); }
+balloonMesh.visible = false; scene.add(balloonMesh);
 let powKey = "";
 function collectStuff(me, dt) {
   if (me.state !== "race") return;
@@ -1942,7 +2252,7 @@ function collectStuff(me, dt) {
       u.mesh.visible = false; u.glow.visible = false; u.back = state.raceT + 6;
       const P = POWERS[u.type]; me.pow = { type: u.type, t: P.secs };
       sfx("power"); burst(u.x, u.y + 1, u.z, new THREE.Color(P.col).getHex(), 18, 5);
-      toast({ rush: "Candy Comet! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer" }[u.type]);
+      toast({ rush: "Candy Comet! Top speed up", magnet: "Magnet! Coins fly to you", shield: "Bumper Shield! Bumpers, flippers and goo can't stop you", air: "Big Air! Jumps go higher and float longer", surf: "Surfboard! Skim the water at top speed", spot: "Spotlight! Everything else slows down", balloon: "Balloon! Float across gaps instead of falling" }[u.type]);
     }
   }
   if (me.pow) { me.pow.t -= dt; if (me.pow.t <= 0) { me.pow = null; sfx("powerEnd"); } }
@@ -2038,11 +2348,13 @@ function botInput(m) {
   for (let k = Math.max(0, m.botIdx - 6); k < Math.min(BOTPATH.length, m.botIdx + 30); k++) { const s = BOTPATH[k], d = (s.x - m.x) ** 2 + (s.z - m.z) ** 2; if (d < bd) { bd = d; i = k; } }
   if (bd > 100) { bd = 1e9; for (let k = 0; k < BOTPATH.length; k++) { const s = BOTPATH[k], d = (s.x - m.x) ** 2 + (s.z - m.z) ** 2; if (d < bd) { bd = d; i = k; } } }
   m.botIdx = i;
+  for (const w of waits) if (w.inside(m) && !w.ready()) { m.inx = clamp(-m.vx * 0.4, -1, 1); m.inz = clamp(-m.vz * 0.4, -1, 1); return; }
   const tgt = BOTPATH[Math.min(BOTPATH.length - 1, i + 5)];
   const ahead = BOTPATH[Math.min(BOTPATH.length - 1, i + 12)];
   let tx = tgt.x - m.x, tz = tgt.z - m.z; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;
   const turn = 1 - Math.abs(tgt.tx * ahead.tx + tgt.tz * ahead.tz);
-  const want = m.botSpeed * (1 - turn * 0.9);
+  let want = m.botSpeed * (1 - turn * 0.9);
+  for (const w of waits) if (w.slow && w.inside(m)) want = Math.min(want, w.slow);
   let ix = (tx * want - m.vx) / 4, iz = (tz * want - m.vz) / 4;
   // ride a boost instead of braking it away: keep only a little of any slowing-down push
   const brake = ix * tx + iz * tz; if (brake < 0 && turn < 0.15) { ix -= tx * brake * 0.8; iz -= tz * brake * 0.8; }
@@ -2405,10 +2717,9 @@ function frame(now) {
     if (state.online && me.state !== "done" && TIME_LIMIT - state.raceT - me.penalty <= 0) { me.inx = me.inz = 0; if (!state.timeUpShown) { state.timeUpShown = true; toast("Time's up! Waiting for results…"); } }
     for (const m of marbles) if (!m.isPlayer && !m.remote) { if (m.state === "race") botInput(m); else if (m.state === "done") { m.inx = -m.vx * 0.2; m.inz = -m.vz * 0.2; } }
     updateRemotes(dt);
-    // flippers run on the race clock (the same for everyone online): a warning, then a quick swing
-    for (const k of kickers) { const t = ((state.raceT + k.phase) % k.period + k.period) % k.period; k.warn = t > k.period - 0.7; k.swing = t < 0.3; }
     acc += dt;
     while (acc >= SUB) {
+      state.hazT += SUB * hazardRate(); updateHazards();
       for (const m of marbles) if (!m.remote && (m.state === "race" || m.state === "done")) stepMarble(m, SUB);
       collideMarbles(); acc -= SUB;
     }
@@ -2440,7 +2751,7 @@ function frame(now) {
       const s = nearestSample(LINES, m.x, m.z); m.prog = m.finishT !== null ? TOTAL_ARC + 100 : s.arc;
     }
     collectStuff(me, dt);
-    for (const g of gates) if (g.open) { g.timer -= dt; if (g.timer <= 0) { const blocked = marbles.some(m => m.x > g.x0 - R && m.x < g.x1 + R && m.z > g.z0 - R && m.z < g.z1 + R); if (!blocked) { g.open = false; sfx("gateClose"); } } }
+    for (const g of gates) if (g.open && !g.cycle) { g.timer -= dt; if (g.timer <= 0) { const blocked = marbles.some(m => m.x > g.x0 - R && m.x < g.x1 + R && m.z > g.z0 - R && m.z < g.z1 + R); if (!blocked) { g.open = false; sfx("gateClose"); } } }
     if (!state.online && me.state !== "done" && TIME_LIMIT - state.raceT - me.penalty <= 0) endRace("timeup");
     if (state.online && now - net.sendT > 50) { net.sendT = now; sendMyState(me); }
     // rolling sound
@@ -2462,7 +2773,17 @@ function frame(now) {
   for (const p of pads) { p.squish = Math.max(0, p.squish - dt); p.mesh.scale.y = 1 - (p.squish / 0.3) * 0.6; }
   for (const s of switches) if (s.glow) { const shut = !(gateOf(s) || {}).open; s.glow.visible = shut; if (shut) s.glow.scale.setScalar(2.6 + Math.sin(now / 220) * 1.1); }
   for (const s of switches) { const on = !!(gateOf(s) || {}).open; s.top.map = on ? T.switchOn : T.switchOff; s.top.emissive.setHex(on ? 0x806000 : 0x000000); s.mesh.position.y = s.y + (on ? 0.04 : 0.1); }
-  for (const g of gates) { g.mesh.position.y = lerp(g.mesh.position.y, g.y0 - (g.open ? 2.2 : 0), 1 - Math.exp(-dt * 8)); if (g.plate) g.plate.visible = !g.open; }
+  for (const g of gates) {
+    if (g.fire) { g.flames.visible = !g.open; g.flames.children.forEach((f, i) => { f.scale.y = 1 + Math.sin(now / 70 + i * 1.7) * 0.25; }); g.mesh.children.forEach(o => { if (o.userData.flameGlow) o.visible = !g.open; }); continue; }
+    g.mesh.position.y = lerp(g.mesh.position.y, g.y0 - (g.open ? 2.2 : 0), 1 - Math.exp(-dt * 8)); if (g.plate) g.plate.visible = !g.open;
+  }
+  for (const b of bumpers) if (b.path && b.mesh) { b.mesh.position.x = b.x; b.mesh.position.z = b.z; }
+  for (const mv of movers) if (mv.mesh) {
+    mv.mesh.position.set(mv.p.cx, mv.p.h, mv.p.cz);
+    if (mv.ropes) { const a = mv.ropes.geometry.attributes.position, P = mv.pivot; [[-1, -1], [1, -1], [-1, 1], [1, 1]].slice(0, 2).forEach(([sx], i) => { a.setXYZ(i * 2, mv.p.cx + sx * mv.p.hx, mv.p.h + 0.1, mv.p.cz); a.setXYZ(i * 2 + 1, P[0] + sx * mv.p.hx, P[1], P[2]); }); a.needsUpdate = true; mv.ropes.geometry.computeBoundingSphere(); }
+  }
+  for (const zp of zaps) if (zp.bolt) { zp.bolt.visible = zp.on; zp.mat.emissiveIntensity = zp.on ? 1.2 : zp.warn ? (Math.sin(now / 40) > 0 ? 0.7 : 0) : 0; }
+  if (fx.flows) for (const { c, tex } of fx.flows) { const k = c.wave ? Math.sin(state.hazT / c.wave * Math.PI * 2) : c.gust ? ((state.hazT % c.gust[0]) < c.gust[1] ? 1 : 0.08) : 1; tex.offset.y -= dt * 0.9 * k; }
   for (const t of fx.boostMats) t.offset.y = (t.offset.y - dt * 1.6) % 1;
   // coins spin; taken ones shrink to nothing
   if (fx.coins) {
@@ -2476,6 +2797,7 @@ function frame(now) {
     for (const p of k.paddles) { const s = p.userData.s, want = k.swing ? -s * 0.4 : s * 0.5 + wig; p.rotation.y = lerp(p.rotation.y, want, 1 - Math.exp(-dt * (k.swing ? 40 : 10))); }
     for (const l of k.lamp) l.scale.setScalar(k.warn || k.swing ? 2.6 + Math.sin(now / 60) * 0.8 : 0.01);
   }
+  if (me) { const bl = me.pow && me.pow.type === "balloon" && state.phase === "race"; balloonMesh.visible = bl; if (bl) balloonMesh.position.set(me.x, me.y + R, me.z); }
   // shield bubble round your marble
   if (me && me.vis) { const sh = me.pow && me.pow.type === "shield"; shieldMesh.visible = sh && state.phase === "race"; if (sh) { shieldMesh.position.set(me.x, me.y + R, me.z); shieldMesh.scale.setScalar(1 + Math.sin(now / 150) * 0.04); } }
   for (const p of fx.puddleMeshes) p.material.emissiveIntensity = 0.25 + Math.sin(now / 300) * 0.1;

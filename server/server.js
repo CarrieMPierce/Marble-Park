@@ -13,7 +13,7 @@ const MAX_PLAYERS = 8;
 const COUNTDOWN_MS = 3500;
 const GATE_MS = 8000;
 // in play order; a park tour plays them all, each player clicking Ready between courses
-const COURSES = [{ id: "entrance", seconds: 75 }, { id: "bumper", seconds: 95 }, { id: "skate", seconds: 65 }];
+const COURSES = [{ id: "entrance", seconds: 75 }, { id: "bumper", seconds: 95 }, { id: "skate", seconds: 65 }, { id: "lagoon", seconds: 75 }, { id: "bigtop", seconds: 85 }, { id: "clouds", seconds: 70 }];
 const POINTS = [10, 8, 6, 5, 4, 3, 2, 1];
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O, so codes are easy to read aloud
 const MARBLE_IDS = ["sky", "ember", "clover", "midnight", "lagoon", "violet", "sunflower", "peppermint"];

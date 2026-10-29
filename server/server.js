@@ -10,10 +10,10 @@ const { WebSocketServer } = require("ws");
 const PORT = process.env.PORT || 3000;
 const GAME_FILE = path.join(__dirname, "..", "game", "grand-entrance.html");
 const MAX_PLAYERS = 8;
-const RACE_SECONDS = 75;
 const COUNTDOWN_MS = 3500;
-const TOURNAMENT_RACES = 3;
 const GATE_MS = 8000;
+// in play order; a park tour plays them all, each player clicking Ready between courses
+const COURSES = [{ id: "entrance", seconds: 75 }, { id: "bumper", seconds: 95 }, { id: "skate", seconds: 65 }];
 const POINTS = [10, 8, 6, 5, 4, 3, 2, 1];
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O, so codes are easy to read aloud
 const MARBLE_IDS = ["sky", "ember", "clover", "midnight", "lagoon", "violet", "sunflower", "peppermint"];
@@ -55,12 +55,18 @@ function freeMarble(room, wanted) {
   if (MARBLE_IDS.includes(wanted) && !taken.has(wanted)) return wanted;
   return MARBLE_IDS.find(m => !taken.has(m));
 }
+const racesIn = room => room.mode === "tour" ? COURSES.length : 1;
 function roomState(room) {
   return {
-    t: "room", code: room.code, host: room.host, mode: room.mode, phase: room.phase, race: room.race,
-    races: room.mode === "tournament" ? TOURNAMENT_RACES : 1,
+    t: "room", code: room.code, host: room.host, mode: room.mode, course: room.course, phase: room.phase, race: room.race,
+    races: racesIn(room), ready: [...room.ready],
     players: [...room.players.values()].map(p => ({ id: p.id, name: p.name, marble: p.marble, total: room.totals[p.id] || 0 })),
   };
+}
+// between tour courses: once everyone still here has clicked Ready, the next course starts
+function checkReady(room) {
+  if (room.phase !== "results" || room.race >= racesIn(room) || room.players.size === 0) return;
+  if ([...room.players.keys()].every(id => room.ready.has(id))) startRace(room);
 }
 
 function addPlayer(ws, room, name, marble) {
@@ -77,18 +83,21 @@ function leave(ws) {
   room.players.delete(ws.id);
   if (room.players.size === 0) { clearTimeout(room.timer); rooms.delete(room.code); return; }
   if (room.host === ws.id) room.host = room.players.keys().next().value;
+  room.ready.delete(ws.id);
   broadcast(room, roomState(room));
   if (room.phase === "race" && [...room.players.values()].every(p => p.finish)) endRace(room);
+  checkReady(room);
 }
 
 function startRace(room) {
-  room.phase = "race"; room.race += 1; room.startAt = Date.now() + COUNTDOWN_MS; room.gateUntil = 0;
+  const course = room.mode === "tour" ? COURSES[room.race] : COURSES.find(c => c.id === room.course) || COURSES[0];
+  room.phase = "race"; room.race += 1; room.startAt = Date.now() + COUNTDOWN_MS; room.gateUntil = 0; room.ready = new Set();
   const slots = {}; let i = 0;
   for (const p of room.players.values()) { p.finish = null; p.prog = 0; slots[p.id] = i++; }
   broadcast(room, roomState(room));
-  broadcast(room, { t: "start", race: room.race, races: room.mode === "tournament" ? TOURNAMENT_RACES : 1, startAt: room.startAt, raceSeconds: RACE_SECONDS, slots });
+  broadcast(room, { t: "start", race: room.race, races: racesIn(room), course: course.id, startAt: room.startAt, raceSeconds: course.seconds, slots });
   clearTimeout(room.timer);
-  room.timer = setTimeout(() => endRace(room), COUNTDOWN_MS + RACE_SECONDS * 1000 + 2000);
+  room.timer = setTimeout(() => endRace(room), COUNTDOWN_MS + course.seconds * 1000 + 2000);
 }
 
 function endRace(room) {
@@ -102,9 +111,9 @@ function endRace(room) {
     room.totals[p.id] = (room.totals[p.id] || 0) + points;
     return { id: p.id, name: p.name, marble: p.marble, time: p.finish ? p.finish.time : null, falls: p.finish ? p.finish.falls : null, points, total: room.totals[p.id] };
   });
-  const races = room.mode === "tournament" ? TOURNAMENT_RACES : 1;
-  room.phase = "results";
-  broadcast(room, { t: "results", race: room.race, races, mode: room.mode, final: room.race >= races, standings });
+  const races = racesIn(room);
+  room.phase = "results"; room.ready = new Set();
+  broadcast(room, { t: "results", race: room.race, races, mode: room.mode, final: room.race >= races, next: room.race < races ? COURSES[room.race].id : null, standings });
   broadcast(room, roomState(room));
 }
 
@@ -116,7 +125,7 @@ function handle(ws, m) {
     case "ping": send(ws, { t: "pong", c: m.c, s: Date.now() }); break;
     case "create": {
       if (room) leave(ws);
-      const r = { code: newCode(), host: ws.id, players: new Map(), mode: "quick", phase: "lobby", race: 0, totals: {}, gateUntil: 0, timer: null };
+      const r = { code: newCode(), host: ws.id, players: new Map(), mode: "tour", course: COURSES[0].id, phase: "lobby", race: 0, totals: {}, ready: new Set(), gateUntil: 0, timer: null };
       rooms.set(r.code, r);
       addPlayer(ws, r, m.name, m.marble);
       break;
@@ -136,14 +145,19 @@ function handle(ws, m) {
       if (room && room.phase !== "race" && me) { const mb = freeMarble(room, m.marble); if (mb === m.marble) { me.marble = mb; broadcast(room, roomState(room)); } }
       break;
     case "mode":
-      if (isHost && room.phase === "lobby" && (m.mode === "quick" || m.mode === "tournament")) { room.mode = m.mode; broadcast(room, roomState(room)); }
+      if (isHost && room.phase === "lobby" && (m.mode === "quick" || m.mode === "tour")) { room.mode = m.mode; broadcast(room, roomState(room)); }
+      break;
+    case "course":
+      if (isHost && room.phase === "lobby" && COURSES.some(c => c.id === m.course)) { room.course = m.course; broadcast(room, roomState(room)); }
       break;
     case "start":
       if (isHost && room.phase === "lobby") { room.race = 0; room.totals = {}; startRace(room); }
-      else if (isHost && room.phase === "results" && room.mode === "tournament" && room.race < TOURNAMENT_RACES) startRace(room);
+      break;
+    case "ready":
+      if (room && room.phase === "results" && me) { room.ready.add(ws.id); broadcast(room, roomState(room)); checkReady(room); }
       break;
     case "lobby":
-      if (isHost && room.phase === "results") { room.phase = "lobby"; room.race = 0; room.totals = {}; broadcast(room, roomState(room)); }
+      if (isHost && room.phase === "results") { room.phase = "lobby"; room.race = 0; room.totals = {}; room.ready = new Set(); broadcast(room, roomState(room)); }
       break;
     case "st": // live position: [x, y, z, vx, vy, vz, state, progress, scale]
       if (room && room.phase === "race" && Array.isArray(m.d) && m.d.length <= 10) {
@@ -152,7 +166,7 @@ function handle(ws, m) {
       }
       break;
     case "gate":
-      if (room && room.phase === "race") { room.gateUntil = Date.now() + GATE_MS; broadcast(room, { t: "gate", until: room.gateUntil, by: ws.id }); }
+      if (room && room.phase === "race") { room.gateUntil = Date.now() + GATE_MS; broadcast(room, { t: "gate", until: room.gateUntil, by: ws.id, g: String(m.g || "").slice(0, 24) }); }
       break;
     case "finish":
       if (room && room.phase === "race" && me && !me.finish && Date.now() >= room.startAt) {

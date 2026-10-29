@@ -36,11 +36,13 @@ function client(name) {
   check(room.players.every(p => !/[<>]/.test(p.name)), "names are cleaned of HTML characters");
   b.send({ t: "start" }); await wait(100);
   check(!b.last("start"), "only the host can start");
-  a.send({ t: "mode", mode: "tournament" }); await wait(100);
-  check(a.last("room").mode === "tournament", "host switched to tournament");
+  a.send({ t: "mode", mode: "quick" }); a.send({ t: "course", course: "bumper" }); await wait(100);
+  check(a.last("room").mode === "quick" && a.last("room").course === "bumper", "host picked a single course");
+  a.send({ t: "mode", mode: "tour" }); await wait(100);
+  check(a.last("room").mode === "tour", "host switched to the park tour");
   a.send({ t: "start" }); await wait(200);
   const st = c.last("start");
-  check(st && st.race === 1 && st.races === 3 && Object.keys(st.slots).length === 3, "race 1 of 3 started for everyone");
+  check(st && st.race === 1 && st.races >= 2 && st.course === "entrance" && Object.keys(st.slots).length === 3, "park tour starts on Course 1 for everyone");
   const joinMid = client("Late"); await joinMid.ready; joinMid.send({ t: "join", code, name: "Late" }); await wait(150);
   check(joinMid.last("error") && /mid-race/.test(joinMid.last("error").msg), "can't join mid-race");
   joinMid.ws.close();
@@ -60,9 +62,15 @@ function client(name) {
   if (res) {
     check(res.standings[0].id === a.id && res.standings[0].points === 10, "Ana (no penalty) is 1st with 10 points");
     check(res.standings[1].id === b.id && res.standings[1].time >= 3, "Ben's 3s puddle penalty is counted");
-    check(!res.final, "tournament isn't over after race 1");
+    check(!res.final && res.next === "bumper", "tour continues to Bumper Boulevard next");
   }
   check(a.last("room").players.length === 2, "the dropped player left the room");
+  a.send({ t: "ready" }); await wait(200);
+  check(!b.got.some(m => m.t === "start" && m.race === 2), "next course waits until everyone is ready");
+  check(b.last("room").ready.includes(a.id), "everyone sees who is ready");
+  b.send({ t: "ready" }); await wait(200);
+  const st2 = a.last("start");
+  check(st2 && st2.race === 2 && st2.course === "bumper" && st2.raceSeconds > 0, "when all are ready, Course 2 starts");
   a.send({ t: "leave" }); a.ws.close(); await wait(500);
   check(b.last("room").host === b.id, "host passes on when the host leaves");
   b.ws.close();

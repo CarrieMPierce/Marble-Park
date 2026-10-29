@@ -132,7 +132,7 @@ h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18p
 .stars span.on { color: #ffc93c; }
 .starlist { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
 .starlist li.on { color: var(--ink); font-weight: 600; }
-.wallet { font-weight: 600; font-size: 14px; margin: 4px 0 0; }
+.wallet { font-weight: 600; font-size: 14px; margin: 14px 0 0; }
 .mpick[aria-disabled="true"] { opacity: .35; cursor: not-allowed; }
 .cam:disabled { cursor: default; }
 .standings { width: 100%; border-collapse: collapse; margin: 12px 0 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -736,6 +736,8 @@ function courseBigTop() {
   // a deep deck that pauses at each end (the clamp flattens the swing there), so there is time to roll on and off
   const swing = mover(2.2, 2.8, t => { const z = 54 - 3.8 * clamp(1.5 * Math.cos(t / 4.6 * Math.PI * 2), -1, 1), q = (z - 54) / 3.8; return [0, z, 16.15 - 0.8 * (1 - q * q)]; });
   swing.sticky = true;
+  // a safety bar at the trapeze's front edge, so you can't roll off mid-swing; it drops flat once the trapeze docks at B
+  mover(2.2, 0.25, t => { const [x, z, h] = swing.fn(t); return [x, z + 2.55, h + 0.9 * (1 - clamp((z - 57.2) / 0.5, 0, 1))]; }, "bar");
   // the barrier at the edge drops only while the trapeze is docked (from 88% of its cycle round to 12%)
   timedBars("dock", -3, 47.3, 3, 47.9, floorAt(0, 47.6), 4.6, 4.6 * 0.24, 4.6 * 0.12);
   swing.pivot = [0, 29, 54];
@@ -821,10 +823,11 @@ function courseClouds() {
   // a short bridge to island 6, where a pad bounces you SIDEWAYS onto island 7
   route([[10, 138, 13.8], [10, 148, 13.2]], 6, "#7fc8ff", true);
   rect(10, 154, 6, 6, 13.2, "#e0f2ff", "island");
-  pads.push({ x0: 12.5, x1: 15.5, z0: 151, z1: 157, dir: [1, 0] });
+  pads.push({ x0: 12.5, x1: 15.5, z0: 151, z1: 157, dir: [1, 0], speed: 12 }); // always the same gentle bounce, so arriving fast never flings you past island 7
   sign(["SIDEWAYS", "BOUNCE!"], 6.2, 150.2, Math.PI, { w: 512, h: 160, size: 50, bg: "#ffd23f", fg: "#2d9bff", border: "#1d1838" }, 3.0, 1.0, 1.6);
   for (const [x, y] of [[18, 15.6], [21, 16.0], [24, 15.4]]) coinAir(x, 154, y);
   rect(28, 154, 6, 6, 12.6, "#e0f2ff", "island");
+  wall(33.4, 148, 34, 160, 14.4); wall(31.2, 159.4, 33.4, 160, 14.4); wall(25, 148, 33.4, 148.6, 14.4); // a puffy cloud wall round the far side and corner catches you after the sideways bounce
   // a drifting cloud ferries you across the next gap: wait for it, hop on, ride, hop off
   // it pauses at each end (the clamp flattens the swing), so there is a clear moment to step on and off
   const ferry = mover(3, 3, t => [28, 168 - 5.6 * clamp(1.5 * Math.cos(t / 5 * Math.PI * 2), -1, 1), 12.4], "cloud");
@@ -857,50 +860,66 @@ function courseClouds() {
 //      crabs, seagulls that dive to snatch coins, a tide pool, a beach-ball bounce, the lifeguard jump and a ramp up
 //      onto the boardwalk; Sandcastle Shield power-up) ----
 function courseBeach() {
-  startArea(12);
-  // the dune path: rope rails, soft dry sand along the edges
-  route([[0, 5, 12], [0, 18, 11.6], [6, 30, 11.3], [6, 36, 11.14]], 6, "#e8b46a", true);
-  patch("rough", -1.5, 11, 0.6, 4, "drysand"); patch("rough", 7.5, 33, 0.6, 2.6, "drysand");
-  powerup("castle", 0, 9);
-  coinLine([[0, 6], [0, 17], [5.5, 29]]);
-  seagull(-8, 14, 22, 4.2);
-  // the shoreline: waves wash in and out, wet sand is slick, crabs scuttle across, a gull dives
-  const B = table(6, 50, 10, 14, 11.0, -0.01, [6, 3], [6, 3]);
-  current(6, 50, 9, 13, 1, 0, 8, { wave: 4.5 });
-  patch("slick", -0.6, 50, 2.4, 10, "wetsand"); patch("slick", 12.6, 47, 2.4, 6, "wetsand");
-  movingBumper(0, 43, 12, 43, 3.4, 0, "crab"); movingBumper(12, 56, 0, 56, 3.0, 1.2, "crab");
-  seagull(-6, 18, 50, 3.6, 1.0);
-  for (let i = 0; i < 9; i++) coins.push({ x: -1 + (i % 3) * 7, z: 40 + Math.floor(i / 3) * 10 });
-  // the tide pool: a shallow bowl full of pearls
-  route([[6, 64, B.front], [6, 70, 10.7]], 6, "#e8b46a", true);
-  bowl(6, 76, 6, 10.7, 1.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
-  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; coins.push({ x: 6 + Math.cos(a) * 3.2, z: 76 + Math.sin(a) * 3.2 }); }
-  // the beach-ball bounce over the tide channel
-  route([[6, 82, 10.7], [6, 90, 10.5]], 6, "#e8b46a", true);
-  pads.push({ x0: 3.9, x1: 8.1, z0: 88.6, z1: 90, dir: [0, 1] });
-  sign(["BEACH BALL", "BOUNCE!"], 1.6, 85, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#1fb8d6", border: "#3b1530" }, 3.0, 1.0, 1.6);
-  for (const [z, y] of [[94.6, 13.7], [97.6, 13.6], [100.6, 12.2]]) coinAir(6, z, y);
-  // the sandcastle beach: more crabs, a gull, a Sandcastle Shield
-  const F = table(6, 110, 8, 10, 10.0, -0.01, null, [6, 3]);
-  movingBumper(0, 106, 12, 106, 2.8, 0, "crab"); movingBumper(12, 113, 0, 113, 3.2, 1.5, "crab");
-  seagull(18, -6, 110, 3.8, 0.5);
-  powerup("castle", 2, 103);
-  coinLine([[1, 102], [1, 116]], 2.2); coinLine([[11, 102], [11, 116]], 2.2);
-  // the lifeguard jump over the sandbar
-  route([[6, 120, F.front], [6, 128, 9.7]], 6, "#e8b46a", true);
-  boost(6, 122.5, 0, 1, 3, 5);
-  ramp(6, 126, 2.1, 4, 1.2);
-  for (const [z, y] of [[130, 11.9], [133, 12.0], [136, 11.6]]) coinAir(6, z, y);
-  route([[6, 133, 9.0], [6, 142, 8.8], [0, 152, 8.6], [0, 156, 8.6]], 7, "#e8b46a", true);
+  startArea(14);
+  powerup("castle", 0, 3);
+  // the dune path: a winding sand track; the middle is packed smooth, the edges are soft, slow dry sand; two dune hops
+  route([[0, 5, 14], [0, 14, 13.7], [-8, 24, 13.4], [-8, 34, 13.1], [2, 44, 12.85], [2, 50, 12.8]], 7, "#e8b46a", true);
+  patch("rough", -10.6, 29, 0.9, 5, "drysand"); patch("rough", -5.4, 29, 0.9, 5, "drysand");
+  ramp(-8, 27, 2.6, 2.4, 0.6); ramp(-8, 32, 2.6, 2.4, 0.6);
+  coinLine([[0, 6], [0, 13], [-7.5, 23]]); for (const z of [27.6, 32.6]) coinAir(-8, z, 14.6);
+  seagull(-14, 10, 18, 4.2);
+  // the waterline sprint: waves wash in and out across a long straight. The wet sand by the water is slick and fast
+  // (the coins are there), the dry sand inland is slow but safe; crabs scuttle across
+  route([[2, 50, 12.8], [2, 100, 11.8]], 11, "#e8b46a", true);
+  current(2, 75, 5.5, 23, 1, 0, 7, { wave: 4.5 });
+  patch("slick", -1.6, 75, 1.8, 23, "wetsand"); patch("rough", 6, 75, 1.4, 23, "drysand");
+  boost(-1.6, 60, 0, 1, 3, 3); boost(-1.6, 84, 0, 1, 3, 3);
+  movingBumper(-3, 66, 7, 66, 3.2, 0, "crab"); movingBumper(7, 90, -3, 90, 2.8, 1.1, "crab");
+  coinLine([[-1.6, 53], [-1.6, 97]], 2.2);
+  seagull(-12, 16, 78, 3.6, 1.0);
+  // the tide pools: two shallow pools full of pearls; a crab runs laps round the second
+  route([[2, 100, 11.8], [2, 107, 11.6]], 7, "#e8b46a", true);
+  bowl(2, 112, 5, 11.6, 1.4, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  route([[2, 117, 11.6], [2, 121, 11.5]], 7, "#e8b46a", true);
+  bowl(2, 126, 5, 11.5, 1.4, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  circlingBumper(2, 126, 3.0, 0.9, 0, "crab");
+  for (const cz of [112, 126]) for (let i = 0; i < 6; i++) { const t = i / 6 * Math.PI * 2 + 0.5; coins.push({ x: 2 + Math.cos(t) * 2.6, z: cz + Math.sin(t) * 2.6 }); }
+  // the beach-ball bounce over the inlet
+  route([[2, 131, 11.5], [2, 140, 11.3]], 7, "#e8b46a", true);
+  pads.push({ x0: -0.1, x1: 4.1, z0: 138.6, z1: 140, dir: [0, 1] });
+  sign(["BEACH BALL", "BOUNCE!"], -2.4, 135, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#1fb8d6", border: "#3b1530" }, 3.0, 1.0, 1.6);
+  current(2, 145, 5, 4.6, 1, 0, 0, { wave: 3 });
+  for (const [z, y] of [[144.6, 14.5], [147.6, 14.4]]) coinAir(2, z, y);
+  // the sandcastle beach: weave between the castles while the crabs scuttle; a Sandcastle Shield helps
+  const F = table(2, 163, 10, 15, 10.8, -0.01, null, [2, 3], "#e8b46a");
+  for (const [x, z] of [[-4, 158], [8, 158], [2, 165], [-4, 172], [8, 172]]) bumpers.push({ x, z, skin: "sandcastle" });
+  movingBumper(-6, 161.5, 10, 161.5, 3.2, 0, "crab"); movingBumper(10, 168.5, -6, 168.5, 3.6, 1.4, "crab");
+  patch("slick", 2, 158, 2, 1.6, "wetsand"); patch("slick", 2, 172, 2, 1.6, "wetsand");
+  powerup("castle", -5, 152);
+  coinLine([[-6, 154], [-6, 176]], 2.2); coinLine([[10, 154], [10, 176]], 2.2);
+  seagull(14, -10, 164, 3.8, 0.5);
+  // the surf chute: a curling water channel; the current carries you and a Surfboard rides it faster
+  route([[2, 178, F.front], [2, 184, 10.5], [-6, 196, 10.0], [-6, 214, 9.6]], 7, "#1fb8d6", true, 1.2);
+  powerup("surf", 2, 181);
+  current(-6, 205, 3.2, 9, 0, 1, 7); current(-2, 190, 3, 5, -0.55, 0.85, 6);
+  coinLine([[-7.8, 198], [-4.2, 212]], 1.8);
+  // the Lifeguard Leap off the lifeguard tower ramp
+  route([[-6, 214, 9.6], [-6, 222, 9.4]], 6, "#e8b46a", true);
+  boost(-6, 216.5, 0, 1, 3, 5);
+  ramp(-6, 220, 2.1, 4, 1.2);
+  stunt(-10, 222, -2, 227, 11.0, "LIFEGUARD LEAP!", 3);
+  for (const [z, y] of [[223.5, 11.6], [226, 11.4]]) coinAir(-6, z, y);
+  route([[-6, 227, 8.7], [-6, 236, 8.6], [0, 246, 8.5], [0, 250, 8.5]], 7, "#e8b46a", true);
+  patch("rough", -6, 232, 3, 2, "drysand");
   // up the ramp onto the boardwalk
-  route([[0, 156, 8.6], [0, 166, 9.6], [0, 182, 9.5]], 8, "#c98e55", true);
-  coinLine([[0, 158], [0, 180]], 2);
-  seagull(-10, 10, 174, 3.4, 0.3);
-  finishArea(0, 188.5, 7, 6.5, 9.5, 186);
-  checkpoint(6, 40, 6, 21.6); checkpoint(6, 68, 3.5, 7.6); checkpoint(6, 104, 6, 17.6); checkpoint(6, 121, 3.5, 7.6); checkpoint(0, 152, 3.5, 8.6);
-  const L = [[0, 5], [0, 18], [6, 30], [6, 36], [6, 64], [6, 70], [6, 82], [6, 90], [6, 100], [6, 120], [6, 128], [6, 133], [6, 142], [0, 152], [0, 156], [0, 166], [0, 182], [0, 190]];
+  route([[0, 250, 8.5], [0, 260, 9.5], [0, 276, 9.4]], 8, "#c98e55", true);
+  coinLine([[0, 252], [0, 274]], 2);
+  seagull(-10, 10, 266, 3.4, 0.3);
+  finishArea(0, 282.5, 7, 6.5, 9.4, 280);
+  checkpoint(2, 52, 5.5, 11); checkpoint(2, 103, 3.5, 7.6); checkpoint(2, 152, 6, 19.6); checkpoint(2, 180, 3.5, 7.6); checkpoint(-6, 216, 3, 6.6); checkpoint(0, 248, 3.5, 7.6);
+  const L = [[0, 5], [0, 14], [-8, 24], [-8, 34], [2, 44], [2, 50], [2, 100], [2, 107], [2, 117], [2, 121], [2, 131], [2, 140], [2, 150], [2, 157], [-1.5, 165], [2, 172], [2, 178], [2, 184], [-6, 196], [-6, 214], [-6, 222], [-6, 227], [-6, 236], [0, 246], [0, 250], [0, 260], [0, 276], [0, 284]];
   setLines([[0, -2], ...L], [], [[0, 1.5], ...L]);
-  CAMZONES.push({ x: 6, z: 50, r: 13, k: 0.5 }, { x: 6, z: 76, r: 7, k: 0.45 }, { x: 6, z: 95, r: 8, k: 0.8 }, { x: 6, z: 131, r: 7, k: 0.7 });
+  CAMZONES.push({ x: 2, z: 112, r: 6, k: 0.45 }, { x: 2, z: 126, r: 6, k: 0.45 }, { x: 2, z: 145, r: 8, k: 0.8 }, { x: -6, z: 224, r: 7, k: 0.7 });
 }
 
 // ---- Course 8: Boardwalk Pier (a tribute to a beloved seaside pier: the castle facade with its arches and letter blocks,
@@ -937,6 +956,9 @@ function coursePier() {
   coinLine([[0, 114], [0, 128]], 2);
   // the log flume: a water chute with a current, a steep drop and a splash pool
   route([[0, 130, 9.2], [0, 142, 8.4], [-8, 152, 7.6], [-8, 158, 7.2], [-8, 166, 4.2]], 7, "#1fb8d6", true, 1.6);
+  ramp(-8, 164.2, 1.8, 3.6, 1.1); // the splash jump: off the end of the flume and out over the splash pool
+  stunt(-14, 167, -2, 176, 4.6, "SPLASHDOWN!", 3);
+  for (const [z, y] of [[167.5, 6.4], [170, 6.6], [172.5, 6.0]]) coinAir(-8, z, y);
   current(0, 136, 2.6, 6, 0, 1, 7); current(-8, 155, 2.6, 3, 0, 1, 7);
   bowl(-8, 172, 6, 4.2, 1.6, [{ a: -Math.PI / 2, hw: 3.5 }, { a: Math.PI / 2, hw: 3 }]);
   coinLine([[-2.4, 134], [-2.4, 141]], 1.8); coinLine([[2.4, 134], [2.4, 141]], 1.8);
@@ -946,21 +968,30 @@ function coursePier() {
   rect(-7.1, 193.4, 3.1, 5, 4.2, null, "plaza");
   wall(-4.5, 188.4, -4, 198.4, 5.4); wall(-10.2, 197.9, -4, 198.4, 5.4);
   wall(-10.2, 188.4, -9.7, 191.6, 5.4); wall(-10.2, 195.2, -9.7, 198.4, 5.4);
-  const wheelP = 14, wheelAng = t => { const u = ((t % wheelP) + wheelP) % wheelP / wheelP; return 2 * Math.PI * (u - Math.sin(4 * Math.PI * u) / (4 * Math.PI)); };
-  const cabin = mover(1.6, 1.6, t => { const a = wheelAng(t); return [-12, 193.4 + 11 * Math.sin(a), 15.2 - 11 * Math.cos(a)]; }, "ladybug");
+  const wheelP = 9, wheelAng = t => { const u = ((t % wheelP) + wheelP) % wheelP / wheelP; return 2 * Math.PI * (u - Math.sin(4 * Math.PI * u) / (4 * Math.PI)); };
+  // one ladybug cabin you can ride (a second would sit right over the first at the top, and the ground-height physics
+  // would read it as a pillar); the wheel turns quickly so the wait is short
+  const cabins = [mover(1.6, 1.6, t => { const a = wheelAng(t); return [-12, 193.4 + 11 * Math.sin(a), 15.2 - 11 * Math.cos(a)]; }, "ladybug")];
   WHEEL = { cx: -12, cy: 15.2, cz: 193.4, R: 11, ang: wheelAng };
-  const phase = () => ((state.hazT % wheelP) + wheelP) % wheelP / wheelP;
-  waitFor(m => m.x > -10.2 && m.x < -5.5 && m.z > 190.5 && m.z < 196.5 && !standingOn(cabin.p, m), () => phase() > 0.975 || phase() < 0.02, 3);
-  waitFor(m => standingOn(cabin.p, m), () => Math.abs(phase() - 0.5) < 0.025, 3);
+  const docked = () => cabins.some(c => c.p.h < 4.25), onCabin = m => cabins.find(c => standingOn(c.p, m));
+  waitFor(m => m.x > -10.2 && m.x < -5.5 && m.z > 190.5 && m.z < 196.5 && !onCabin(m), docked, 3);
+  waitFor(m => !!onCabin(m), m => { const c = onCabin(m); return !!c && c.p.h > 26.15; }, 3);
+  // racers queue politely at the foot of the wheel: nobody rolls onto the boarding deck while someone else is boarding
+  const boarding = m => m.x > -14 && m.x < -4 && m.z > 188.4 && m.z < 198.4 && m.y < 6;
+  waitFor(m => m.z > 182 && m.z < 188.4 && m.x > -10 && m.x < -4, m => !marbles.some(o => o !== m && o.state === "race" && boarding(o)), 3);
   sign(["RIDE THE", "GIANT WHEEL"], -4.8, 189.6, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.0, 1.0, 1.6);
   rect(-15.55, 193.4, 2.05, 2.2, 26.2, null, "plaza");
   // the big slide down from the top of the wheel to the finish
   route([[-17.6, 193.4, 26.2], [-24, 193.4, 25.6]], 5, "#c98e55", true);
-  route([[-24, 193.4, 25.6], [-30, 205, 21.5], [-24, 217, 17], [-32, 229, 12.5], [-28, 240, 8.5], [-28, 248, 7.5]], 8, "#e8343a", true, 2.0);
+  route([[-24, 193.4, 25.6], [-30, 205, 21.5], [-24, 217, 17], [-32, 229, 12.5], [-28, 240, 8.5], [-28, 246, 8.0]], 8, "#e8343a", true, 2.0);
+  // the finale leap: a kicker at the bottom of the slide throws you over a gap and down onto the finish
+  ramp(-28, 244.2, 2.2, 3.6, 1.2);
+  stunt(-34, 247, -22, 252, 6.6, "GRAND FINALE LEAP!", 3);
+  for (const [z, y] of [[247.5, 9.8], [250, 9.6]]) coinAir(-28, z, y);
   for (const [x, z] of [[-34, 205], [-20, 217], [-36, 229]]) { coins.push({ x, z }); coins.push({ x: x * 0.98, z: z - 2.2 }); coins.push({ x: x * 0.98, z: z + 2.2 }); }
-  finishArea(-28, 254.5, 7, 6.5, 7.5, 252);
+  finishArea(-28, 256.5, 7, 6.5, 7.0, 255);
   checkpoint(0, 18, 4, 9.6); checkpoint(0, 34, 6, 29.6); checkpoint(0, 58, 4, 29.6); checkpoint(0, 94, 6, 25.6); checkpoint(0, 126, 3.5, 9.6); checkpoint(-7, 185, 3.5, 7.6); checkpoint(-20, 193.4, 2.4, 7.6);
-  const tail = [[-24, 193.4], [-30, 205], [-24, 217], [-32, 229], [-28, 240], [-28, 248], [-28, 256]];
+  const tail = [[-24, 193.4], [-30, 205], [-24, 217], [-32, 229], [-28, 240], [-28, 246], [-28, 251], [-28, 258]];
   setLines([[0, -2], [0, 5], [0, 28], [0, 52], [0, 80], [0, 88], [0, 112], [0, 130], [0, 142], [-8, 152], [-8, 166], [-8, 172], [-8, 178], [-7, 188.4], [-8.6, 193.4], [-12, 193.4], [-17.6, 193.4], ...tail], [],
     [[0, 1.5], [0, 5], [0, 28], [0, 52], [0, 80], [0, 88], [9.5, 94], [9.5, 104], [4, 110], [0, 112], [0, 130], [0, 142], [-8, 152], [-8, 166], [-8, 172], [-8, 178], [-7, 188.4], [-8.6, 193.4], [-12, 193.4], [-15.5, 193.4], ...tail]);
   CAMZONES.push({ x: 0, z: 46, r: 10, k: 0.4 }, { x: 0, z: 100, r: 12, k: 0.5 }, { x: -12, z: 193, r: 12, k: 0.9 });
@@ -974,7 +1005,7 @@ const COURSES = [
   { id: "lagoon", num: 4, name: "Splash Lagoon", blurb: "A twisting water slide, a lazy river that carries you, a wave pool with pool-cleaner robots, and a whirlpool. Grab a Surfboard.", time: 75, par: 26, theme: "splash", bumperSkin: "robot", bumperKick: 6, bumperBounce: 0.6, build: courseLagoon },
   { id: "bigtop", num: 5, name: "Big Top", blurb: "Walk the tightrope, ride the trapeze, jump through the ring of fire, get fired from a cannon, then take the Daredevil Leap over the clown wagons.", time: 100, par: 42, theme: "circus", bumperSkin: "pin", bumperKick: 6, bumperBounce: 0.6, build: courseBigTop },
   { id: "clouds", num: 6, name: "Cloud Bounce", blurb: "Bounce island to island across the sky: lean into the gusts, dodge the thunderclouds, bounce sideways, ride a drifting cloud and chain the bounce clouds to the rainbow slide.", time: 100, par: 38, theme: "sky", bumperKick: 5, bumperBounce: 0.6, build: courseClouds },
-  { id: "beach", num: 7, name: "Sunny Beach", blurb: "Waves wash over the shore, crabs scuttle, seagulls dive for your coins. Bounce a beach ball, jump the lifeguard ramp and climb onto the boardwalk.", time: 85, par: 24, theme: "beach", bumperSkin: "crab", bumperKick: 6, bumperBounce: 0.6, build: courseBeach },
+  { id: "beach", num: 7, name: "Sunny Beach", blurb: "Roll the dunes, sprint the wet sand as the waves wash in, hop the tide pools, bounce a beach ball over the inlet, weave the sandcastles, ride the surf chute and take the Lifeguard Leap.", time: 115, par: 32, theme: "beach", bumperSkin: "crab", bumperKick: 6, bumperBounce: 0.6, build: courseBeach },
   { id: "pier", num: 8, name: "Boardwalk Pier", blurb: "Through the castle arches (spell the letters for a golden ticket), round the carousel and teacups, past the swings and the haunted house, down the flume and up the Giant Wheel.", time: 140, par: 68, theme: "pier", bumperKick: 5, bumperBounce: 0.6, build: coursePier },
 ];
 const courseById = id => COURSES.find(c => c.id === id) || COURSES[0];
@@ -1766,6 +1797,11 @@ function buildObjects() {
       for (const sx of [-1, 1]) { const claw = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), shell.material); claw.position.set(sx * 1.1, 0.5, 0.6); claw.scale.set(1, 0.8, 1.3); cap.add(claw); const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), M.ink); eye.position.set(sx * 0.3, 0.6, 0.6); cap.add(eye); }
       cap.material = shell.material;
     }
+    else if (skin === "sandcastle") { // a sandcastle: a squat sand keep, three towers and a flag
+      const sand = mat({ color: 0xe8c48a, roughness: 0.9 }); cap = new THREE.Group(); const keep = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.15, 0.9, 8), sand); keep.position.y = 0.1; cap.add(keep);
+      for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2, t = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 1.1, 8), sand); t.position.set(Math.cos(a) * 0.7, 0.6, Math.sin(a) * 0.7); cap.add(t); }
+      const flag = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 3), gloss({ color: 0xe8343a })); flag.position.set(0.15, 1.4, 0); flag.rotation.z = -Math.PI / 2; cap.add(flag); cap.material = flag.material;
+    }
     else if (skin === "robot") { // pool-cleaner robot: a chunky rounded body with headlamp eyes
       cap = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 1.6), gloss({ color: 0xff7a59 })); body.position.y = 0.2; cap.add(body);
       const lid = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), gloss({ color: 0xfff4e2 })); lid.position.y = 0.55; lid.scale.set(1, 0.6, 0.85); cap.add(lid);
@@ -1871,6 +1907,10 @@ function buildObjects() {
       const floor = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.3, mv.p.hz * 2), gloss({ color: 0xfff4e2 })); floor.position.y = -0.15; g.add(floor);
       const shell = new THREE.Mesh(new THREE.SphereGeometry(mv.p.hx * 1.25, 20, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), gloss({ color: 0xe8343a, side: THREE.DoubleSide })); shell.position.y = 0; g.add(shell);
       for (const [x, z] of [[0.9, 0.9], [-0.9, 0.9], [0.9, -0.9], [-0.9, -0.9], [0, 1.6], [0, -1.6]]) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), M.ink); sp.position.set(x * 1.05, -0.7, z * 1.05); g.add(sp); }
+      mv.mesh = g; continue;
+    }
+    if (mv.skin === "bar") { // the trapeze's safety bar: a striped circus rail
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.9, mv.p.hz * 2), gloss({ color: 0xffc93c })); bar.position.y = -0.45; g.add(bar);
       mv.mesh = g; continue;
     }
     if (mv.skin === "cloud") { // a drifting cloud: a flat white top on a heap of puffs
@@ -2479,8 +2519,8 @@ function stepMarble(m, dt) {
     if (m.isPlayer && !state.zoneHints.has("spin")) { state.zoneHints.add("spin"); toast("Spinning floor! It swings you round; roll off where you want to go"); }
   }
   // riding a moving platform: it carries you (only when it is what you stand on, not a lip beside it),
-  // and its deck is grippy so arriving a little fast does not roll you off
-  if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25 && Math.abs(floorAt(m.x, m.z) - h) < 0.01) { m.x += mv.dx; m.z += mv.dz; m.vx -= m.vx * 3.5 * dt; m.vz -= m.vz * 3.5 * dt; } }
+  // and its deck holds you still while you're not steering (steer, and you roll off freely)
+  if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25 && Math.abs(floorAt(m.x, m.z) - h) < 0.01) { m.x += mv.dx; m.z += mv.dz; const grip = Math.abs(m.inx) + Math.abs(m.inz) > 0.3 ? 0.5 : 4; m.vx -= m.vx * grip * dt; m.vz -= m.vz * grip * dt; } }
   const sp = Math.hypot(m.vx, m.vz); if (sp > vmax) { m.vx *= vmax / sp; m.vz *= vmax / sp; }
   const wasAir = !m.grounded;
   if (m.grounded) {
@@ -2552,7 +2592,7 @@ function stepMarble(m, dt) {
   m.onBoost = onBoost;
   for (const p of pads) {
     if (m.x >= p.x0 && m.x <= p.x1 && m.z >= p.z0 && m.z <= p.z1) {
-      const along = m.vx * p.dir[0] + m.vz * p.dir[1], s = clamp(along, 12, 15);
+      const along = m.vx * p.dir[0] + m.vz * p.dir[1], s = p.speed ? p.speed : clamp(along, 12, 15);
       const lx = m.vx - along * p.dir[0], lz = m.vz - along * p.dir[1];
       m.vx = p.dir[0] * s + lx * 0.25; m.vz = p.dir[1] * s + lz * 0.25; m.vy = 11.5; m.grounded = false; m.y += 0.05;
       p.squish = 0.3; sfx("pad"); burst(m.x, m.y + 0.3, m.z, 0x2d7ff9, 12, 4);
@@ -2780,7 +2820,7 @@ function botInput(m) {
   if (bd > 100) { bd = 1e9; for (let k = 0; k < BOTPATH.length; k++) { const s = BOTPATH[k], d = (s.x - m.x) ** 2 + (s.z - m.z) ** 2; if (d < bd) { bd = d; i = k; } } }
   m.botIdx = i;
   for (const dr of drains) { const dx = m.x - dr.cx, dz = m.z - dr.cz, d = Math.hypot(dx, dz); if (d < dr.pull + 0.5 && d > 0.01) { m.inx = dx / d; m.inz = dz / d; return; } }
-  for (const w of waits) if (w.inside(m) && !w.ready()) { m.inx = clamp(-m.vx * 0.4, -1, 1); m.inz = clamp(-m.vz * 0.4, -1, 1); return; }
+  for (const w of waits) if (w.inside(m) && !w.ready(m)) { m.inx = clamp(-m.vx * 0.4, -1, 1); m.inz = clamp(-m.vz * 0.4, -1, 1); return; }
   const tgt = BOTPATH[Math.min(BOTPATH.length - 1, i + 5)];
   const ahead = BOTPATH[Math.min(BOTPATH.length - 1, i + 12)];
   let tx = tgt.x - m.x, tz = tgt.z - m.z; const L = Math.hypot(tx, tz) || 1; tx /= L; tz /= L;

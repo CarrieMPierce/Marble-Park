@@ -323,7 +323,7 @@ function drawSwatch(cv, d) {
 // A course is built from pieces. Every piece reports a surface height at (x,z) or null;
 // walls are just pieces taller than a marble can step up.
 const pieces = [], holes = [], puddles = [], bumpers = [], pads = [], boosts = [], kickers = [], zones = [], switches = [], gates = [], bowls = [], signs = [], coins = [], pickups = [], drains = [];
-const currents = [], movers = [], zaps = [], waits = [];
+const currents = [], movers = [], zaps = [], waits = [], pipes = [], stunts = [];
 const decor = { segs: [], rails: [], posts: [] };
 let COURSE = null, TIME_LIMIT = 75, CHECKPOINTS = [], FINISH = null, MAIN = [], LINES = [], TOTAL_ARC = 1, BOTPATH = [], CAMZONES = [];
 
@@ -331,7 +331,7 @@ function mkSeg(a, b, w, capA, capB, pipe = 0) { const dx = b[0] - a[0], dz = b[1
 // pts: [x, z, height]; rails keep marbles on; pipe > 0 makes a U-shaped half-pipe that rises that high at its edges
 function route(pts, w, color, rails, pipe = 0) {
   const segs = [];
-  for (let i = 0; i < pts.length - 1; i++) { const p = mkSeg(pts[i], pts[i + 1], w, i > 0, i < pts.length - 2, pipe); p.color = color; pieces.push(p); decor.segs.push(p); segs.push(p); }
+  for (let i = 0; i < pts.length - 1; i++) { const p = mkSeg(pts[i], pts[i + 1], w, i > 0, i < pts.length - 2, pipe); p.color = color; pieces.push(p); decor.segs.push(p); segs.push(p); if (pipe) pipes.push(p); }
   if (!rails) return;
   // Rails run along mitred offset lines, so the pieces either side of a bend meet exactly at one point. (Separate straight
   // rails left the next rail's rounded end poking into the lane on the outside of a bend: a post marbles got pinned on.)
@@ -450,12 +450,16 @@ function timedGate(id, x0, z0, x1, z1, y, period, open, phase = 0) { const g = g
 function movingBumper(ax, az, bx, bz, period, phase = 0) { bumpers.push({ x: ax, z: az, path: { ax, az, bx, bz, period, phase } }); }
 // computer racers hold still while inside(m) until ready() (waiting for the trapeze or the fire ring)
 function waitFor(inside, ready, slow = 0) { waits.push({ inside, ready, slow }); } // `slow`: once ready, roll on gently
+// a stunt: fly through this box (above height ymin) and you earn a bonus, once per race: the ring of fire, the daredevil leap
+function stunt(x0, z0, x1, z1, ymin, name, bonus) { stunts.push({ x0, z0, x1, z1, ymin, name, bonus }); }
+// half-pipes: is (x, z) on a half-pipe floor?
+const onPipe = (x, z) => pipes.some(p => { const t = ((x - p.ax) * p.dx + (z - p.az) * p.dz) / p.len2; if (t < 0 || t > 1) return false; return Math.hypot(x - (p.ax + p.dx * t), z - (p.az + p.dz * t)) <= p.hw; });
 function boost(x, z, dx, dz, len = 3, w = 5) { const L = Math.hypot(dx, dz); boosts.push({ x, z, dx: dx / L, dz: dz / L, len, w }); }
 // pinball flippers either side of a gap: every `period` seconds they swing and bat any marble between them
 // (dir -1 = back up the table). Lights flash and the paddles wiggle first, so the timing can be read.
 function flippers(cx, z, halfGap, o = {}) { kickers.push({ cx, z, halfGap, x0: cx - halfGap - 0.4, x1: cx + halfGap + 0.4, z0: z - 1.8, z1: z + 0.6, dir: o.dir ?? -1, speed: o.speed ?? 12, period: o.period ?? 3.2, phase: o.phase ?? 0, swing: false, warn: false }); }
 // a launch ramp lying on a straight that runs toward +z: it rises `rise` over `len`, then drops, so speed becomes air
-function ramp(cx, cz, hw, len, rise, skin = "cookie") { const base = floorAt(cx, cz - len / 2); const p = rect(cx, cz, hw, len / 2, base + rise / 2, null, "ramp", rise / len); p.skin = skin; p.rise = rise; return p; }
+function ramp(cx, cz, hw, len, rise, skin = "deck") { const base = floorAt(cx, cz - len / 2); const p = rect(cx, cz, hw, len / 2, base + rise / 2, null, "ramp", rise / len); p.skin = skin; p.rise = rise; return p; }
 // candy coins: a trail along [x, z] points at track height, or single coins hanging in the air over a jump
 function coinLine(pts, gap = 1.7) { for (const s of sampleLine(pts, gap)) coins.push({ x: s.x, z: s.z }); }
 function coinAir(x, z, y) { coins.push({ x, z, y }); }
@@ -511,7 +515,7 @@ function courseEntrance() {
   coinLine([[-2.2, 61], [-2.2, 67]], 1.5); coinLine([[2.2, 61], [2.2, 67]], 1.5);
   // into the bowl, over a little cookie ramp in the middle of the lane (or round it)
   route([[0, 74, 7], [0, 82, 6]], 6, "#ff6b57", true);
-  ramp(0, 77.5, 1.5, 3.5, 0.7);
+  ramp(0, 77.5, 1.5, 3.5, 0.7, "cookie");
   coinAir(0, 80, 7.6); coinAir(0, 81.5, 7.3);
   bowl(0, 92, 10, 6, 3.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
   for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; coins.push({ x: Math.cos(a) * 7.2, z: 92 + Math.sin(a) * 7.2 }); }
@@ -599,50 +603,58 @@ function courseBumper() {
   CAMZONES.push({ x: 6, z: 14, r: 8, k: 0.55 }, { x: 18, z: 0, r: 8, k: 0.55 }, { x: 0, z: 58, r: 12, k: 0.6 }, { x: -2, z: 140, r: 13, k: 0.65 }, { x: -2, z: 124, r: 7, k: 0.9 }, { x: 6, z: 97, r: 8, k: 0.4 });
 }
 
-// ---- Course 3: Skate Park (frosted half-pipes, donut bowls, kicker ramps, a gap jump and marshmallow pits;
-//      steer in the air to spin a trick, land it for a speed boost; Big Air power-up) ----
+// ---- Course 3: Skate Park (a real skatepark: a drop-in, a long snake run you pump for speed, a funbox plaza with
+//      kickers and grind rails, a double pool with a drain, a gap jump and a final slalom; Big Air power-up) ----
 function courseSkate() {
-  startArea(14);
-  route([[0, 5, 14], [0, 16, 12.6]], 6, "#8b6cff", true);
-  powerup("rush", 0, 10); coinLine([[0, 6], [0, 15]]);
-  // half-pipe 1 with a kicker ramp down the middle; coins high on both walls
-  route([[0, 16, 12.6], [0, 38, 10.6]], 8, "#8b6cff", true, 1.6);
-  ramp(0, 27, 1.6, 4, 1.2);
-  for (const [z, y] of [[31, 13.8], [33, 13.7], [35, 13.0]]) coinAir(0, z, y);
-  coinLine([[-3, 18], [-3, 36]], 2.2); coinLine([[3, 18], [3, 36]], 2.2);
-  // drain bowl: ride the wall round the swirling drain at the bottom (a few brave coins sit close to it)
-  route([[0, 38, 10.6], [0, 42, 10.4]], 6, "#9be15d", true);
-  bowl(0, 52, 10, 10.4, 3.6, [{ a: -Math.PI / 2, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
-  drain(0, 52);
-  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; coins.push({ x: Math.cos(a) * 7.8, z: 52 + Math.sin(a) * 7.8 }); }
-  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; coins.push({ x: Math.cos(a) * 3.2, z: 52 + Math.sin(a) * 3.2 }); }
-  // out of the bowl, Big Air, a boost, a kicker and a gap jump onto the deck
-  route([[0, 62, 10.4], [0, 66, 10.2], [8, 74, 9.8], [8, 84, 9.3]], 6, "#8b6cff", true);
-  powerup("air", 0, 64.5);
-  boost(8, 77, 0, 1, 3, 5);
-  ramp(8, 82, 2.1, 4, 1.0);
-  sign(["BOOST", "& JUMP!"], 4.2, 78, Math.PI, { w: 512, h: 160, size: 56, bg: "#8b6cff", fg: "#fff" }, 2.6, 0.8, 1.8);
-  for (const [z, y] of [[85.8, 11.3], [88.5, 11.4], [91.2, 10.9], [94, 9.8]]) coinAir(8, z, y);
-  route([[8, 88, 8.0], [8, 96, 7.6], [8, 100, 8.3], [8, 104, 7.2]], 7, "#9be15d", true);
-  coinLine([[8, 97], [8, 103]], 1.5);
-  // half-pipe 2 sweeps left: a marshmallow pit on the floor of the bend, then a second kicker
-  route([[8, 104, 7.2], [8, 107, 7.05], [0, 118, 6.4], [-8, 132, 5.6], [-8, 146, 5.0]], 8, "#8b6cff", true, 1.8);
-  patch("rough", 0, 118, 1.4, 2, "marsh");
-  powerup("air", 6.5, 109.5);
-  ramp(-8, 139, 1.6, 4, 1.1);
-  for (const [z, y] of [[142.8, 7.2], [144.6, 6.9]]) coinAir(-8, z, y);
-  coinLine([[5, 110], [-3.5, 121.5], [-10.5, 133]], 2.2);
-  // donut bowl 2: a big frosted donut in the middle, exit round to the right
-  bowl(-8, 157, 11, 5.0, 3.9, [{ a: -Math.PI / 2, hw: 4 }, { a: 0, hw: 3 }]);
-  bumpers.push({ x: -8, z: 157 });
-  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; coins.push({ x: -8 + Math.cos(a) * 6, z: 157 + Math.sin(a) * 6 }); }
-  route([[3, 157, 5.0], [8, 157, 4.8], [12, 163, 4.6], [12, 172, 4.2]], 6, "#9be15d", true);
-  coinLine([[6, 157], [11.5, 164], [12, 171]], 1.7);
-  finishArea(12, 178.5, 7, 6.5, 4.2, 176);
-  checkpoint(0, 31, 3.5, 9.6); checkpoint(8, 72, 3.5, 7.6); checkpoint(8, 98, 3.5, 8.6); checkpoint(-8, 134, 3.5, 9.6);
-  setLines([[0, -2], [0, 5], [0, 16], [0, 38], [0, 42], [0, 52], [0, 62], [0, 66], [8, 74], [8, 84], [8, 88], [8, 104], [8, 107], [0, 118], [-8, 132], [-8, 146], [-8, 157], [3, 157], [8, 157], [12, 163], [12, 172], [12, 180]], [],
-    [[0, 1.5], [0, 5], [0, 16], [0, 38], [0, 42], [-4.5, 45.5], [-6.6, 52], [-4.5, 58.5], [0, 62], [0, 66], [8, 74], [8, 84], [8, 88], [8, 96], [8, 100], [8, 104], [8, 107], [2.3, 119.3], [-8, 132], [-8, 146], [-5, 152], [-1, 156], [3, 157], [8, 157], [12, 163], [12, 172], [12, 180]]);
-  CAMZONES.push({ x: 0, z: 52, r: 12, k: 0.45 }, { x: 8, z: 88, r: 9, k: 0.8 }, { x: -8, z: 157, r: 13, k: 0.45 }, { x: 0, z: 30, r: 6, k: 0.5 });
+  startArea(20);
+  route([[0, 5, 20], [0, 12, 19.6]], 6, "#8b6cff", true);
+  powerup("rush", 0, 9); coinLine([[0, 6], [0, 11]]);
+  // the drop-in, then the snake run: a long serpentine half-pipe. Swoop off its walls to pump up speed.
+  const snake = [[0, 12, 19.6], [0, 20, 16.4], [6, 32, 15.6], [-6, 46, 14.8], [6, 60, 14.0], [-2, 74, 13.2], [0, 86, 12.8]];
+  route(snake, 8, "#8b6cff", true, 2.0);
+  // the high coins sit up on the walls at the outside of each bend: ride the wall to get them
+  for (const [x, z] of [[9.2, 32], [-9.2, 46], [9.2, 60], [-5.2, 74]]) { coins.push({ x, z }); coins.push({ x: x * 0.92, z: z - 2.4 }); coins.push({ x: x * 0.92, z: z + 2.4 }); }
+  coinLine([[0, 20], [0, 26]], 2);
+  // the funbox plaza: kickers, a funbox to roll over, and two grind rails along the sides (balance on them for coins)
+  const fp = table(0, 100, 12, 14, 12.6, -0.015, [0, 4], [0, 4]);
+  ramp(-6.5, 93, 1.8, 3.5, 1.0); ramp(6.5, 93, 1.8, 3.5, 1.0);
+  const fbBase = floorAt(0, 97);
+  Object.assign(rect(0, 99, 2.6, 2, fbBase + 0.6, null, "ramp", 0.3), { skin: "deck", rise: 1.2 }); // up
+  Object.assign(rect(0, 102, 2.6, 1, fbBase + 1.2, null, "ramp", 0), { skin: "deck", rise: 1.2 }); // top
+  Object.assign(rect(0, 105, 2.6, 2, fbBase + 0.6, null, "ramp", -0.3), { skin: "deck", rise: 1.2 }); // down
+  for (const z of [100.5, 102, 103.5]) coinAir(0, z, fbBase + 1.9);
+  for (const s of [-1, 1]) {
+    const x = s * 9.6, z0 = 89, z1 = 108, h0 = 12.6 + 0.015 * 11 + 0.3, h1 = 12.6 - 0.015 * 8 + 0.3;
+    route([[x, z0, h0], [x, z1, h1]], 1.3, "#c3c7d4", false);
+    coinLine([[x, z0 + 1.5], [x, z1 - 1]], 2);
+  }
+  powerup("air", 0, 110);
+  // the double pool: a donut bowl, a channel, then a drain bowl you ride round to its far side
+  route([[0, 114, fp.front], [0, 123, 12.0]], 8, "#9be15d", true);
+  bowl(0, 133, 10, 12.0, 3.6, [{ a: -Math.PI / 2, hw: 4 }, { a: 0, hw: 3 }]);
+  bumpers.push({ x: 0, z: 133 });
+  for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10 * Math.PI * 2; coins.push({ x: Math.cos(a) * 6.5, z: 133 + Math.sin(a) * 6.5 }); }
+  route([[10, 133, 12.0], [14, 133, 12.0]], 6, "#8b6cff", true);
+  bowl(24, 133, 10, 12.0, 3.6, [{ a: Math.PI, hw: 3 }, { a: Math.PI / 2, hw: 3 }]);
+  drain(24, 133);
+  for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10 * Math.PI * 2; coins.push({ x: 24 + Math.cos(a) * 7.6, z: 133 + Math.sin(a) * 7.6 }); }
+  // out of the pool: a boost, a kicker and the gap jump onto the deck
+  route([[24, 143, 12.0], [24, 150, 11.8], [24, 160, 11.4]], 6, "#8b6cff", true);
+  powerup("air", 24, 146);
+  boost(24, 153, 0, 1, 3, 5);
+  ramp(24, 158, 2.1, 4, 1.0);
+  sign(["BOOST", "& JUMP!"], 20.2, 154, Math.PI, { w: 512, h: 160, size: 56, bg: "#8b6cff", fg: "#fff" }, 2.6, 0.8, 1.8);
+  for (const [z, y] of [[162, 12.9], [165, 12.9], [168, 12.3]]) coinAir(24, z, y);
+  route([[24, 165, 10.4], [24, 175, 10.0]], 7, "#9be15d", true);
+  // the last slalom: a winding half-pipe down to the finish
+  route([[24, 175, 10.0], [18, 187, 9.2], [26, 199, 8.4], [24, 206, 8.0]], 8, "#8b6cff", true, 1.8);
+  for (const [x, z] of [[14.6, 187], [29.6, 199]]) { coins.push({ x, z }); coins.push({ x, z: z - 2.2 }); coins.push({ x, z: z + 2.2 }); }
+  finishArea(24, 212.5, 7, 6.5, 8.0, 210);
+  checkpoint(6, 32, 4, 9.6); checkpoint(0, 90, 6, 26.6); checkpoint(0, 119, 3.5, 9.6); checkpoint(24, 147, 3.5, 7.6); checkpoint(24, 170, 3.5, 8.6);
+  const sl = snake.map(p => [p[0], p[1]]);
+  setLines([[0, -2], [0, 5], ...sl, [0, 114], [0, 123], [0, 133], [10, 133], [14, 133], [24, 133], [24, 143], [24, 160], [24, 165], [24, 175], [18, 187], [26, 199], [24, 206], [24, 214]], [],
+    [[0, 1.5], [0, 5], ...sl, [0, 96], [0, 108], [0, 114], [0, 123], [3, 127.5], [7.4, 131], [10, 133], [14, 133], [17, 136.5], [20.5, 140], [24, 143], [24, 160], [24, 165], [24, 175], [18, 187], [26, 199], [24, 206], [24, 214]]);
+  CAMZONES.push({ x: 0, z: 100, r: 14, k: 0.55 }, { x: 0, z: 133, r: 12, k: 0.45 }, { x: 24, z: 133, r: 12, k: 0.45 }, { x: 24, z: 163, r: 8, k: 0.8 });
 }
 
 // ---- Course 4: Splash Lagoon (a winding water slide, a lazy river that carries you, a wave pool with pool-cleaner
@@ -681,49 +693,66 @@ function courseLagoon() {
   CAMZONES.push({ x: 8, z: 98, r: 12, k: 0.55 }, { x: 8, z: 124, r: 12, k: 0.45 }, { x: 8, z: 69, r: 8, k: 0.3 });
 }
 
-// ---- Course 5: Big Top (a tightrope with no rails, a trapeze that carries you over a gap, a ring of fire,
-//      a circus cannon and juggling pins; Spotlight power-up slows everything else down) ----
+// ---- Course 5: Big Top (a tightrope with no rails, a trapeze that carries you over a gap, a ramp that jumps you through
+//      the ring of fire, a circus cannon, juggling pins, the Daredevil Leap over a row of clown wagons, and a clown-car
+//      crossing; Spotlight power-up slows everything else down) ----
 function courseBigTop() {
-  startArea(16);
-  route([[0, 5, 16], [0, 16, 15.2]], 6, "#e8343a", true);
-  coinLine([[0, 6], [0, 15]]);
-  // the tightrope: a narrow beam with nothing at the sides
-  route([[0, 16, 15.2], [0, 34, 14.4]], 2.6, "#ffc93c", false);
-  coinLine([[0, 18], [0, 33]], 1.5);
-  sign(["TIGHTROPE!"], -3.4, 15.4, Math.PI, { size: 60, bg: "#ffc93c", fg: "#3b1530" });
-  // platform A, then the trapeze swings over the gap to platform B (ride it; wait for it to come back if you miss it)
-  table(0, 40, 6, 6, 14.3, -0.01, [0, 1.6], [0, 3]);
-  powerup("spot", -3, 39);
-  const swing = mover(2.2, 2.2, t => { const z = 52 - 4.5 * Math.cos(t / 4.2 * Math.PI * 2), q = (z - 52) / 4.5; return [0, z, 14.15 - 1.1 * (1 - q * q)]; });
-  swing.pivot = [0, 27, 52];
-  sign(["WAIT FOR", "THE TRAPEZE"], 3.6, 44.8, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.2, 1.0, 1.6);
-  waitFor(m => m.z > 41.5 && m.z < 46.2 && Math.abs(m.x) < 6, () => { const u = (state.hazT % 4.2) / 4.2; return u > 0.86 || u < 0.03; }, 4);
-  waitFor(m => pieceH(swing.p, m.x, m.z) !== null && Math.abs(pieceH(swing.p, m.x, m.z) - m.y) < 0.3, () => swing.p.cz > 56.1, 3);
-  for (const [z, y] of [[50, 13.7], [52, 13.6], [54, 13.7]]) coinAir(0, z, y + 0.7);
-  table(0, 64, 6, 6, 14.0, -0.02, [0, 3], [0, 3]);
-  // the ring of fire: flames for a while, then a gap to roll through
-  route([[0, 70, 13.88], [0, 82, 13.0], [0, 86, 12.8]], 6, "#e8343a", true);
-  const ring = timedGate("fire", -3, 74.6, 3, 75.4, floorAt(0, 75), 3.4, 1.9);
-  waitFor(m => m.z > 69 && m.z < 74.4 && Math.abs(m.x) < 3, () => { const u = state.hazT % 3.4; return u < 1.1; });
-  coinLine([[0, 77], [0, 81]], 1.4);
+  startArea(18);
+  route([[0, 5, 18], [0, 14, 17.4]], 6, "#e8343a", true);
+  coinLine([[0, 6], [0, 13]]);
+  // the tightrope: a long narrow beam with nothing at the sides
+  route([[0, 14, 17.4], [0, 36, 16.4]], 2.6, "#ffc93c", false);
+  coinLine([[0, 16], [0, 35]], 1.5);
+  sign(["TIGHTROPE!"], -3.4, 13.4, Math.PI, { size: 60, bg: "#ffc93c", fg: "#3b1530" });
+  // platform A, then the trapeze swings over the gap to platform B (wait for it; ride it; step off at the far end)
+  table(0, 42, 6, 6, 16.3, -0.01, [0, 1.6], [0, 3]);
+  powerup("spot", -3, 41);
+  const swing = mover(2.2, 2.2, t => { const z = 54 - 4.5 * Math.cos(t / 4.2 * Math.PI * 2), q = (z - 54) / 4.5; return [0, z, 16.15 - 1.1 * (1 - q * q)]; });
+  swing.pivot = [0, 29, 54];
+  sign(["WAIT FOR", "THE TRAPEZE"], 3.6, 46.8, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.2, 1.0, 1.6);
+  waitFor(m => m.z > 43.5 && m.z < 48.2 && Math.abs(m.x) < 6, () => { const u = (state.hazT % 4.2) / 4.2; return u > 0.86 || u < 0.03; }, 4);
+  waitFor(m => pieceH(swing.p, m.x, m.z) !== null && Math.abs(pieceH(swing.p, m.x, m.z) - m.y) < 0.3, () => swing.p.cz > 58.1, 3);
+  for (const z of [52, 54, 56]) coinAir(0, z, 16.0);
+  table(0, 66, 6, 6, 16.0, -0.02, [0, 3], [0, 3]);
+  // the fire run: hit the ramp and fly through the ring of fire, or wait for the flames to drop and roll through
+  route([[0, 72, 15.88], [0, 92, 14.8]], 6, "#e8343a", true);
+  ramp(0, 76, 2.1, 4, 2.0);
+  timedGate("fire", -3, 80.6, 3, 81.4, floorAt(0, 81), 3.4, 1.9);
+  stunt(-3, 79.6, 3, 82.4, floorAt(0, 81) + 0.9, "Through the ring of fire!", 3);
+  waitFor(m => m.z > 69.5 && m.z < 73.6 && Math.abs(m.x) < 3.5, () => (state.hazT % 3.4) < 0.6);
+  sign(["JUMP THE", "RING OF FIRE!"], -4.4, 72.6, Math.PI, { w: 512, h: 160, size: 46, bg: "#ffc93c", fg: "#e8343a", border: "#3b1530" }, 3.2, 1.0, 1.6);
+  for (const [z, y] of [[79, 18.4], [81, 18.6], [83, 18.0]]) coinAir(0, z, y);
   // the circus cannon fires you over the gap into the juggling ring
-  pads.push({ x0: -2.1, x1: 2.1, z0: 83, z1: 86, dir: [0, 1] });
-  sign(["CANNON!"], -4.2, 81, Math.PI, { size: 66, bg: "#e8343a", fg: "#ffc93c" });
-  for (const [z, y] of [[89, 15.6], [92, 16.0], [95, 15.4]]) coinAir(0, z, y);
-  const C = table(0, 100, 8, 8, 12.4, -0.02, null, [0, 3]);
-  movingBumper(-5.5, 97, 5.5, 97, 3.0); movingBumper(5.5, 103, -5.5, 103, 3.6, 1.5);
-  coinLine([[-6, 94], [6, 94]], 2); coinLine([[-6, 105.5], [6, 105.5]], 2);
-  route([[0, 108, C.front], [0, 116, 11.9], [-8, 126, 11.4], [-8, 136, 11.0]], 6, "#e8343a", true);
-  coinLine([[0, 110], [0, 115], [-8, 126], [-8, 134]], 1.8);
-  finishArea(-8, 142.5, 7, 6.5, 11.0, 140);
-  checkpoint(0, 40, 5, 13.6); checkpoint(0, 64, 5, 13.6); checkpoint(0, 100, 6, 17.6); checkpoint(-8, 130, 3.5, 7.6);
-  setLines([[0, -2], [0, 5], [0, 16], [0, 34], [0, 46], [0, 58], [0, 70], [0, 86], [0, 92], [0, 108], [0, 116], [-8, 126], [-8, 136], [-8, 144]], [],
-    [[0, 1.5], [0, 5], [0, 16], [0, 34], [0, 40], [0, 45], [0, 52], [0, 59], [0, 64], [0, 70], [0, 74], [0, 82], [0, 86], [0, 100], [0, 108], [0, 116], [-8, 126], [-8, 136], [-8, 144]]);
-  CAMZONES.push({ x: 0, z: 52, r: 9, k: 0.7 }, { x: 0, z: 92, r: 9, k: 0.8 }, { x: 0, z: 25, r: 9, k: 0.35 });
+  pads.push({ x0: -2.1, x1: 2.1, z0: 89, z1: 92, dir: [0, 1] });
+  sign(["CANNON!"], -4.2, 87.5, Math.PI, { size: 66, bg: "#e8343a", fg: "#ffc93c" });
+  for (const [z, y] of [[95, 17.6], [98, 18.0], [101, 17.4]]) coinAir(0, z, y);
+  const C = table(0, 106, 8, 8, 14.4, -0.02, null, [0, 3]);
+  movingBumper(-5.5, 103, 5.5, 103, 3.0); movingBumper(5.5, 109, -5.5, 109, 3.6, 1.5);
+  coinLine([[-6, 100], [6, 100]], 2); coinLine([[-6, 111.5], [6, 111.5]], 2);
+  // the Daredevil Leap: a boost, a big ramp, and a long flight over a row of clown wagons
+  route([[0, 114, C.front], [0, 122, 14.0], [0, 130, 13.8]], 6, "#e8343a", true);
+  boost(0, 118, 0, 1, 3, 5);
+  ramp(0, 127, 2.1, 6, 3.0);
+  boost(0, 127, 0, 1, 6, 4.2); // the boost runs up the ramp too, so you leave the top at full speed
+  sign(["DAREDEVIL", "LEAP!"], -4.4, 120, Math.PI, { w: 512, h: 160, size: 52, bg: "#3b1530", fg: "#ffc93c", border: "#ffc93c" }, 3.2, 1.0, 1.8);
+  stunt(-8, 134, 8, 144, 12.6, "DAREDEVIL LEAP!", 5);
+  for (const [z, y] of [[133, 18.6], [137, 19.4], [141, 18.8], [145, 16.8]]) coinAir(0, z, y);
+  // land on the big stage, dodge the clown cars crossing it, then the home straight
+  const D = table(0, 161, 8, 15, 12.6, -0.015, null, [0, 3]);
+  movingBumper(-6, 152, 6, 152, 2.8); movingBumper(6, 160, -6, 160, 3.2, 1); movingBumper(-6, 168, 6, 168, 2.6, 0.6);
+  coinLine([[0, 150], [0, 172]], 2.4);
+  route([[0, 176, D.front], [0, 184, 12.0], [-8, 194, 11.6], [-8, 204, 11.2]], 6, "#e8343a", true);
+  coinLine([[0, 178], [0, 184], [-8, 194], [-8, 203]], 1.8);
+  finishArea(-8, 210.5, 7, 6.5, 11.2, 208);
+  checkpoint(0, 42, 5, 13.6); checkpoint(0, 66, 5, 13.6); checkpoint(0, 106, 6, 17.6); checkpoint(0, 116, 3.5, 7.6); checkpoint(0, 150, 7, 17.6); checkpoint(-8, 198, 3.5, 7.6);
+  setLines([[0, -2], [0, 5], [0, 14], [0, 36], [0, 48], [0, 60], [0, 72], [0, 92], [0, 98], [0, 114], [0, 130], [0, 146], [0, 176], [0, 184], [-8, 194], [-8, 204], [-8, 212]], [],
+    [[0, 1.5], [0, 5], [0, 14], [0, 36], [0, 42], [0, 47], [0, 54], [0, 61], [0, 66], [0, 72], [0, 92], [0, 106], [0, 114], [0, 130], [0, 150], [0, 176], [0, 184], [-8, 194], [-8, 204], [-8, 212]]);
+  CAMZONES.push({ x: 0, z: 54, r: 9, k: 0.7 }, { x: 0, z: 80, r: 6, k: 0.6 }, { x: 0, z: 98, r: 9, k: 0.8 }, { x: 0, z: 138, r: 12, k: 0.9 }, { x: 0, z: 25, r: 11, k: 0.35 });
 }
 
-// ---- Course 6: Cloud Bounce (floating islands linked by bounce pads, wind gusts that can blow you off,
-//      thunderclouds that zap, a rail-free sky bridge and a double-bounce chain; Balloon power-up) ----
+// ---- Course 6: Cloud Bounce (floating islands linked by bounce pads, wind gusts that can blow you off, thunderclouds
+//      that zap, a rail-free sky bridge, a double bounce, a sideways bounce, a drifting cloud to ride, a chain of
+//      bounce clouds and a rainbow slide to the finish; Balloon power-up) ----
 function courseClouds() {
   startArea(18);
   route([[0, 5, 18], [0, 17, 17.4]], 6, "#7fc8ff", true);
@@ -757,28 +786,54 @@ function courseClouds() {
   for (const [z, y] of [[104, 17.2], [121, 17.0], [124, 16.6]]) coinAir(10, z, y);
   rect(10, 130, 7, 8, 13.8, "#e0f2ff", "island");
   zap(6, 132, 2.6, 2.8, 1.4); zap(14, 132, 2.6, 2.8, 0);
-  coinLine([[10, 128], [10, 137]], 1.8);
-  route([[10, 138, 13.8], [10, 148, 13.4], [0, 158, 13.0], [0, 166, 12.8]], 6, "#7fc8ff", true);
-  coinLine([[10, 140], [10, 147], [0, 158], [0, 165]], 1.8);
-  finishArea(0, 172.5, 7, 6.5, 12.8, 170);
+  coinLine([[10, 126], [10, 136]], 1.8);
+  // a short bridge to island 6, where a pad bounces you SIDEWAYS onto island 7
+  route([[10, 138, 13.8], [10, 148, 13.2]], 6, "#7fc8ff", true);
+  rect(10, 154, 6, 6, 13.2, "#e0f2ff", "island");
+  pads.push({ x0: 12.5, x1: 15.5, z0: 151, z1: 157, dir: [1, 0] });
+  sign(["SIDEWAYS", "BOUNCE!"], 6.2, 150.2, Math.PI, { w: 512, h: 160, size: 50, bg: "#ffd23f", fg: "#2d9bff", border: "#1d1838" }, 3.0, 1.0, 1.6);
+  for (const [x, y] of [[18, 15.6], [21, 16.0], [24, 15.4]]) coinAir(x, 154, y);
+  rect(28, 154, 6, 6, 12.6, "#e0f2ff", "island");
+  // a drifting cloud ferries you across the next gap: wait for it, hop on, ride, hop off
+  // it pauses at each end (the clamp flattens the swing), so there is a clear moment to step on and off
+  const ferry = mover(3, 3, t => [28, 168 - 5.6 * clamp(1.5 * Math.cos(t / 5 * Math.PI * 2), -1, 1), 12.4], "cloud");
+  waitFor(m => m.x > 22 && m.x < 34 && m.z > 155.5 && m.z < 160.2, () => { const u = (state.hazT % 5) / 5; return u > 0.88 || u < 0.06; }, 4);
+  waitFor(m => pieceH(ferry.p, m.x, m.z) !== null && Math.abs(pieceH(ferry.p, m.x, m.z) - m.y) < 0.3, () => ferry.p.cz > 173.4, 3);
+  sign(["HOP ON THE", "DRIFTING CLOUD"], 33.6, 158, Math.PI, { w: 512, h: 160, size: 44, bg: "#fff4e2", fg: "#2d9bff", border: "#1d1838" }, 3.2, 1.0, 1.6);
+  for (const z of [165, 168, 171]) coinAir(28, z, 13.0);
+  // island 8: a zap and a hard crosswind, then into the chain of bounce clouds (the whole cloud is a bounce pad)
+  rect(28, 182, 7, 6, 12.2, "#e0f2ff", "island");
+  zap(28, 181, 2.4, 3.0, 0.8);
+  current(28, 182, 7, 3, -1, 0, 10, { kind: "wind", gust: [3.4, 1.0] });
+  pads.push({ x0: 25, x1: 31, z0: 185, z1: 188, dir: [0, 1] });
+  rect(28, 200, 4, 4, 11.6, "#ffe7f3", "island"); pads.push({ x0: 24, x1: 32, z0: 196, z1: 204, dir: [0, 1] });
+  rect(28, 215, 4, 5, 11.0, "#fff4c8", "island"); pads.push({ x0: 24, x1: 32, z0: 210, z1: 220, dir: [0, 1] });
+  for (const [z, y] of [[192, 14.4], [207, 13.8], [222, 13.2], [226, 12.6]]) coinAir(28, z, y);
+  // the last island and the rainbow slide down to the finish
+  rect(28, 232, 7, 10, 10.4, "#e0f2ff", "island");
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; coins.push({ x: 28 + Math.cos(a) * 4.5, z: 233 + Math.sin(a) * 5.5 }); }
+  route([[28, 242, 10.4], [28, 256, 8.6]], 7, "#7fc8ff", true, 1.4);
+  coinLine([[25.6, 245], [25.6, 254]], 2.2); coinLine([[30.4, 245], [30.4, 254]], 2.2);
+  finishArea(28, 262.5, 7, 6.5, 8.6, 260);
   checkpoint(0, 22, 5, 15.6); checkpoint(0, 42, 5, 15.6); checkpoint(0, 62, 5, 15.6); checkpoint(10, 110, 3.5, 11.6); checkpoint(10, 128, 5, 15.6);
-  setLines([[0, -2], [0, 5], [0, 17], [0, 24], [0, 31], [0, 44], [0, 51], [0, 64], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 132], [10, 138], [10, 148], [0, 158], [0, 166], [0, 174]], [],
-    [[0, 1.5], [0, 5], [0, 17], [0, 24], [0, 30], [0, 44], [0, 50], [-3.5, 62], [-3.5, 67], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 116], [10, 132], [10, 138], [10, 148], [0, 158], [0, 166], [0, 174]]);
-  CAMZONES.push({ x: 0, z: 34, r: 8, k: 0.8 }, { x: 0, z: 54, r: 8, k: 0.8 }, { x: 10, z: 106, r: 10, k: 0.8 }, { x: 10, z: 122, r: 8, k: 0.8 });
+  checkpoint(10, 152, 4, 13.6); checkpoint(28, 152, 4, 13.6); checkpoint(28, 180, 5, 15.6); checkpoint(28, 228, 6, 15.6);
+  setLines([[0, -2], [0, 5], [0, 17], [0, 24], [0, 31], [0, 44], [0, 51], [0, 64], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 130], [10, 138], [10, 148], [10, 154], [14, 154], [28, 154], [28, 160], [28, 176], [28, 188], [28, 200], [28, 215], [28, 232], [28, 242], [28, 256], [28, 264]], [],
+    [[0, 1.5], [0, 5], [0, 17], [0, 24], [0, 30], [0, 44], [0, 50], [-3.5, 62], [-3.5, 67], [0, 71], [0, 80], [10, 90], [10, 100], [10, 112], [10, 116], [10, 130], [10, 138], [10, 148], [10, 151.5], [14, 154], [20, 154], [28, 154], [28, 159], [28, 168], [28, 177], [28, 187], [28, 200], [28, 215], [28, 232], [28, 242], [28, 256], [28, 264]]);
+  CAMZONES.push({ x: 0, z: 34, r: 8, k: 0.8 }, { x: 0, z: 54, r: 8, k: 0.8 }, { x: 10, z: 106, r: 10, k: 0.8 }, { x: 10, z: 122, r: 8, k: 0.8 }, { x: 20, z: 154, r: 8, k: 0.8 }, { x: 28, z: 168, r: 8, k: 0.7 }, { x: 28, z: 205, r: 18, k: 0.85 });
 }
 
 // par: a time that takes a clean, quick run (beating it earns a star)
 const COURSES = [
   { id: "entrance", num: 1, name: "Sugar Midway", blurb: "The teaching board: gumdrop bumpers, a syrup spill, the bowl, a cookie jump, Candy Comet and a shortcut switch.", time: 75, par: 25, theme: "midway", bumperSkin: "gumdrop", bumperKick: 5, bumperBounce: 0.55, build: courseEntrance },
   { id: "bumper", num: 2, name: "Bumper Boulevard", blurb: "A marble-run tower, two gumball pinball tables, flippers that bat you back, drain holes, Magnet and Bumper Shield.", time: 95, par: 35, theme: "gumball", bumperSkin: "jawbreaker", bumperKick: 10, bumperBounce: 0.9, build: courseBumper },
-  { id: "skate", num: 3, name: "Skate Park", blurb: "Frosted half-pipes, a drain bowl that flushes you if you roll too near the bottom, kickers and a gap jump. Steer in the air to spin a trick.", time: 65, par: 22, theme: "frosted", bumperSkin: "donut", bumperKick: 5, bumperBounce: 0.6, build: courseSkate },
+  { id: "skate", num: 3, name: "Skate Park", blurb: "Drop into a long snake run (swoop off the walls to pump up speed), grind the rails in the funbox plaza, ride a double pool past the drain and nail the gap jump.", time: 90, par: 28, theme: "frosted", bumperSkin: "donut", bumperKick: 5, bumperBounce: 0.6, build: courseSkate },
   { id: "lagoon", num: 4, name: "Splash Lagoon", blurb: "A twisting water slide, a lazy river that carries you, a wave pool with pool-cleaner robots, and a whirlpool. Grab a Surfboard.", time: 75, par: 26, theme: "splash", bumperSkin: "robot", bumperKick: 6, bumperBounce: 0.6, build: courseLagoon },
-  { id: "bigtop", num: 5, name: "Big Top", blurb: "Balance on the tightrope, ride the trapeze over the gap, time the ring of fire and get fired from a circus cannon. Spotlight slows the show.", time: 85, par: 33, theme: "circus", bumperSkin: "pin", bumperKick: 6, bumperBounce: 0.6, build: courseBigTop },
-  { id: "clouds", num: 6, name: "Cloud Bounce", blurb: "Bounce from island to island in the sky. Lean into the wind gusts, dodge the thunderclouds and float a gap with a Balloon.", time: 70, par: 22, theme: "sky", bumperKick: 5, bumperBounce: 0.6, build: courseClouds },
+  { id: "bigtop", num: 5, name: "Big Top", blurb: "Walk the tightrope, ride the trapeze, jump through the ring of fire, get fired from a cannon, then take the Daredevil Leap over the clown wagons.", time: 100, par: 42, theme: "circus", bumperSkin: "pin", bumperKick: 6, bumperBounce: 0.6, build: courseBigTop },
+  { id: "clouds", num: 6, name: "Cloud Bounce", blurb: "Bounce island to island across the sky: lean into the gusts, dodge the thunderclouds, bounce sideways, ride a drifting cloud and chain the bounce clouds to the rainbow slide.", time: 100, par: 38, theme: "sky", bumperKick: 5, bumperBounce: 0.6, build: courseClouds },
 ];
 const courseById = id => COURSES.find(c => c.id === id) || COURSES[0];
 function loadCourseData(c) {
-  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains, currents, movers, zaps, waits]) a.length = 0;
+  for (const a of [pieces, holes, puddles, bumpers, pads, boosts, kickers, zones, switches, gates, bowls, signs, coins, pickups, drains, currents, movers, zaps, waits, pipes, stunts]) a.length = 0;
   decor.segs = []; decor.rails = []; decor.posts = [];
   CHECKPOINTS = []; CAMZONES = []; FINISH = null; COURSE = c; TIME_LIMIT = c.time;
   c.build();
@@ -1285,6 +1340,20 @@ function circusProps() {
     const d = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 2.6, 24), gloss({ map: stripedTex(["#fff4e2", "#" + drumCols[i % 4].toString(16).padStart(6, "0")], 12) })); d.position.set(x, 1.3, z); d.castShadow = true; world.add(d);
     const top = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.3, 24), gloss({ color: 0xffc93c, metalness: 0.4 })); top.position.set(x, 2.75, z); world.add(top);
   });
+  // the Daredevil Leap: a row of clown wagons parked under the gap, and packed stands either side
+  const wagonCols = [0xe8343a, 0x2d9bff, 0xffc93c, 0x35c759];
+  for (let i = 0; i < 4; i++) {
+    const g = new THREE.Group(); g.position.set(0, 5.4, 132.6 + i * 3.6); world.add(g);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 5.4, 12), gloss({ map: rep(stripeVTex("#e8343a", "#fff4e2"), 1, 4) })); post.position.y = -2.7; g.add(post);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.8, 2.8), gloss({ color: wagonCols[i] })); body.position.y = 1.2; body.castShadow = true; g.add(body);
+    const roof = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 3.8, 16, 1, false, 0, Math.PI), gloss({ map: stripedTex(["#fff4e2", "#e8343a"], 8) })); roof.rotation.z = Math.PI / 2; roof.position.y = 2.1; g.add(roof);
+    for (const [x, z] of [[-1.3, -1.45], [1.3, -1.45], [-1.3, 1.45], [1.3, 1.45]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.3, 14), gloss({ color: 0xffc93c, metalness: 0.4 })); w.rotation.x = Math.PI / 2; w.position.set(x, 0.3, z); g.add(w); }
+  }
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 4; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(3, 2 + k * 1.6, 18), gloss({ color: k % 2 ? 0xfff4e2 : 0xe8343a })); st.position.set(s * (13 + k * 3), 1 + k * 0.8, 138); st.castShadow = true; world.add(st); }
+    const crowd = [], cr = rng(s > 0 ? 7 : 8); for (let k = 0; k < 4; k++) for (let j = 0; j < 12; j++) crowd.push(new THREE.Vector3(s * (13 + k * 3) + (cr() - 0.5), 2.4 + k * 1.6, 130 + j * 1.45));
+    bulbs(crowd, [0xff7ab8, 0xffc93c, 0x8fd0ff, 0x9be15d, 0xffffff, 0xff7a1a], 0.42, world);
+  }
   const p = pads[0]; if (p) {
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.0, 5, 20, 1, true), gloss({ color: 0x3b1530, side: THREE.DoubleSide })); barrel.rotation.x = Math.PI / 2 - 0.5; barrel.position.set(5.2, (p.y || floorAtNoHoles(0, 84) || 12) + 1.6, (p.z0 + p.z1) / 2 - 1); world.add(barrel);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.3, 10, 24), gloss({ color: 0xffc93c, metalness: 0.5 })); ring.position.copy(barrel.position); ring.rotation.copy(barrel.rotation); ring.rotation.x += Math.PI / 2; world.add(ring);
@@ -1492,6 +1561,12 @@ function buildObjects() {
   // moving platforms (the trapeze): a platform hung from ropes to a pivot high above
   for (const mv of movers) {
     const g = new THREE.Group(); g.userData.dyn = true; world.add(g);
+    if (mv.skin === "cloud") { // a drifting cloud: a flat white top on a heap of puffs
+      const top = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.4, mv.p.hz * 2), [M.white, M.white, mat({ map: rep(THEME.table, 1, 1) }), M.white, M.white, M.white]); top.position.y = -0.2; g.add(top);
+      const puff = mat({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 1 });
+      for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, s = new THREE.Mesh(new THREE.SphereGeometry(1.6 + (k % 2) * 0.5, 12, 9), puff); s.position.set(Math.cos(a) * 2, -1.2, Math.sin(a) * 2); s.scale.y = 0.6; g.add(s); }
+      mv.mesh = g; continue;
+    }
     const deck = new THREE.Mesh(new THREE.BoxGeometry(mv.p.hx * 2, 0.4, mv.p.hz * 2), [gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a }), gloss({ map: rep(T.stripe, 3, 1) }), gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a }), gloss({ color: 0xe8343a })]);
     deck.position.y = -0.2; deck.castShadow = true; g.add(deck);
     for (const s of [-1, 1]) { const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, mv.p.hz * 2, 10), gloss({ color: 0xffc93c, metalness: 0.4 })); rim.rotation.x = Math.PI / 2; rim.position.set(s * mv.p.hx, 0.1, 0); g.add(rim); }
@@ -2026,7 +2101,7 @@ function resetRace(roster) {
   for (const g of gates) { g.open = false; g.timer = 0; }
   for (const c of coins) { c.taken = false; c.x = c.x0; c.z = c.z0; c.y = c.y0; }
   for (const u of pickups) { u.back = 0; if (u.mesh) { u.mesh.visible = true; u.glow.visible = true; } }
-  Object.assign(state, { raceT: 0, hazT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0 });
+  Object.assign(state, { raceT: 0, hazT: 0, falls: 0, firstFallShown: false, lastRespawnT: -99, gagT: 0, timeUpShown: false, zoneHints: new Set(), coins: 0, tricks: 0, stuntsDone: new Set() });
   updateHazards();
   $("#hudPow").hidden = true; powKey = "";
   state.camYaw = 0; camInit = false;
@@ -2050,6 +2125,13 @@ function stepMarble(m, dt) {
   let damp = m.grounded ? 0.42 : 0.04;
   // bowls are smooth: they keep your momentum, so you swoop down and roll back up the other side (steer to pump higher)
   if (m.grounded && bowls.some(B => (m.x - B.cx) ** 2 + (m.z - B.cz) ** 2 < B.R * B.R)) damp = BOWL_DAMP;
+  // half-pipes: pumping. Smooth like the bowls, and every time you swoop down off a wall you pick up speed,
+  // so slaloming wall to wall makes you faster
+  if (m.grounded && pipes.length && onPipe(m.x, m.z)) {
+    damp = BOWL_DAMP;
+    if (m.slopeVy < -0.3) { const s0 = Math.hypot(m.vx, m.vz) || 1, push = Math.min(9, -m.slopeVy * 1.6); m.vx += m.vx / s0 * push * dt; m.vz += m.vz / s0 * push * dt; }
+    if (m.isPlayer && !state.zoneHints.has("pump")) { state.zoneHints.add("pump"); toast("Half-pipe! Swoop off the walls to pump up speed"); }
+  }
   // friction patches: rough ground drags, slick ground barely holds you and nudges you along
   const zq = m.grounded ? zoneAt(m.x, m.z) : null;
   if (zq && zq.type === "rough") damp = { syrup: 3.0, marsh: 3.4 }[zq.skin] || 2.4;
@@ -2258,6 +2340,10 @@ function collectStuff(me, dt) {
     }
   }
   if (me.pow) { me.pow.t -= dt; if (me.pow.t <= 0) { me.pow = null; sfx("powerEnd"); } }
+  // stunts: flying through the ring of fire or clearing the daredevil leap pays a bonus, once per race each
+  if (!me.grounded) for (const s of stunts) if (!state.stuntsDone.has(s) && me.x >= s.x0 && me.x <= s.x1 && me.z >= s.z0 && me.z <= s.z1 && me.y > s.ymin) {
+    state.stuntsDone.add(s); state.coins += s.bonus; sfx("trick"); burst(me.x, me.y + 0.5, me.z, 0xffc93c, 24, 7); toast(`${s.name} +${s.bonus} coins`);
+  }
   // rolling up to a shut gate explains itself once per race
   for (const g of gates) if (!g.open && !state.zoneHints.has("gate") && Math.hypot(me.x - (g.x0 + g.x1) / 2, me.z - (g.z0 + g.z1) / 2) < 3.5) { state.zoneHints.add("gate"); toast("Locked! Roll over the gold switch to open it for 8 seconds"); }
 }

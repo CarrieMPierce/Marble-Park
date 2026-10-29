@@ -67,9 +67,10 @@ h1 .accent { color: var(--orange); }
 h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18px 0 8px; color: var(--maroon); }
 .card p { margin: 0 0 8px; line-height: 1.45; font-size: 15px; max-width: 62ch; }
 .small { font-size: 13px !important; color: var(--muted); }
-.marbles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.marbles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .mpick { border: 3px solid #fff; background: linear-gradient(#fff, #ffeef5); border-radius: 20px; padding: 7px 4px 6px; cursor: pointer; display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink); box-shadow: 0 0 0 2px #f6d3e2, 0 3px 0 2px #f0bfd4; }
-.mpick canvas { width: 46px; height: 46px; }
+.mpick canvas { width: min(46px, 100%); height: auto; aspect-ratio: 1; }
+.mpick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mpick[aria-pressed="true"] { background: linear-gradient(#ffe0ee, #ffc4dd); box-shadow: 0 0 0 3px var(--orange), 0 4px 0 3px var(--maroon); }
 .cams { display: grid; gap: 6px; }
 .cam { text-align: left; border: 3px solid #fff; background: linear-gradient(#fff, #fff3f8); border-radius: 18px; padding: 8px 12px; cursor: pointer; font-size: 14px; color: var(--ink); box-shadow: 0 0 0 2px #f6d3e2; }
@@ -159,6 +160,15 @@ h2 { font-family: var(--display); font-size: 19px; font-weight: 700; margin: 18p
 @keyframes drip { from { transform: scaleY(1); } to { transform: scaleY(.15) translateY(40px); } }
 @media (prefers-reduced-motion: reduce) { .drive, .popup, .drip, .blink, .wave, .count span, .timer.low { animation: none; } }
 @media (max-width: 520px) { .stand { min-width: 0; } .stand .row .nm { display: none; } .chip { font-size: 12px; padding: 6px 9px; } }
+/* phones: everything fits a 320-430px screen without sideways scrolling */
+@media (max-width: 440px) {
+  .card { padding: 16px 14px; }
+  .marbles { gap: 5px; } .mpick { padding: 5px 2px; font-size: 10px; border-radius: 14px; }
+  .hint { display: none; }
+  .hud-actions { flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .seg button, .btn-s { padding: 6px 8px; font-size: 12px; }
+  .go { font-size: 21px; }
+}
 </style>
 
 <canvas id="c" aria-label="Marble race course"></canvas>
@@ -450,6 +460,8 @@ function mover(hx, hz, fn, skin) { const [cx, cz, h] = fn(0); const p = rect(cx,
 function zap(cx, cz, r, period = 3.2, phase = 0) { zaps.push({ cx, cz, r, period, phase, on: false, warn: false }); }
 // a gate that opens and shuts on its own: open for `open` seconds of every `period` (the ring of fire)
 function timedGate(id, x0, z0, x1, z1, y, period, open, phase = 0) { const g = gate(id, x0, z0, x1, z1, y); g.cycle = { period, open, phase }; g.fire = true; return g; }
+// a low barrier that drops only for part of each cycle (holding you at the edge until the trapeze is there)
+function timedBars(id, x0, z0, x1, z1, y, period, open, phase = 0) { const g = gate(id, x0, z0, x1, z1, y); g.h = y + 1.0; g.cycle = { period, open, phase }; g.bars = true; return g; }
 // a bumper that glides between two points (pool robots, juggling pins)
 function movingBumper(ax, az, bx, bz, period, phase = 0, skin) { bumpers.push({ x: ax, z: az, skin, path: { ax, az, bx, bz, period, phase } }); }
 // a bumper riding round a circle (carousel horses, swing-ride chairs, the caterpillar coaster)
@@ -460,6 +472,8 @@ function turntable(cx, cz, R, h, omega, skin) { pieces.push({ t: "disc", cx, cz,
 function seagull(x0, x1, z, period, phase = 0) { gulls.push({ x0, x1, z, period, phase, x: x0, y: 8, low: false, cool: 0 }); }
 // letter blocks on signposts: collect them all in one race for the golden ticket
 function letterBlock(ch, x, z) { letters.push({ ch, x, z }); }
+// is the marble standing on platform p (it is the floor under it, not just a lip beside it)?
+function standingOn(p, m) { const h = pieceH(p, m.x, m.z); return h !== null && Math.abs(floorAt(m.x, m.z) - h) < 0.01 && Math.abs(h - m.y) < 0.3; }
 // computer racers hold still while inside(m) until ready() (waiting for the trapeze or the fire ring)
 function waitFor(inside, ready, slow = 0) { waits.push({ inside, ready, slow }); } // `slow`: once ready, roll on gently
 // a stunt: fly through this box (above height ymin) and you earn a bonus, once per race: the ring of fire, the daredevil leap
@@ -719,16 +733,21 @@ function courseBigTop() {
   // platform A, then the trapeze swings over the gap to platform B (wait for it; ride it; step off at the far end)
   table(0, 42, 6, 6, 16.3, -0.01, [0, 1.6], [0, 3]);
   powerup("spot", -3, 41);
-  const swing = mover(2.2, 2.2, t => { const z = 54 - 4.5 * Math.cos(t / 4.2 * Math.PI * 2), q = (z - 54) / 4.5; return [0, z, 16.15 - 1.1 * (1 - q * q)]; });
+  // a deep deck that pauses at each end (the clamp flattens the swing there), so there is time to roll on and off
+  const swing = mover(2.2, 2.8, t => { const z = 54 - 3.8 * clamp(1.5 * Math.cos(t / 4.6 * Math.PI * 2), -1, 1), q = (z - 54) / 3.8; return [0, z, 16.15 - 0.8 * (1 - q * q)]; });
+  swing.sticky = true;
+  // the barrier at the edge drops only while the trapeze is docked (from 88% of its cycle round to 12%)
+  timedBars("dock", -3, 47.3, 3, 47.9, floorAt(0, 47.6), 4.6, 4.6 * 0.24, 4.6 * 0.12);
   swing.pivot = [0, 29, 54];
   sign(["WAIT FOR", "THE TRAPEZE"], 3.6, 46.8, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.2, 1.0, 1.6);
-  waitFor(m => m.z > 43.5 && m.z < 48.2 && Math.abs(m.x) < 6, () => { const u = (state.hazT % 4.2) / 4.2; return u > 0.86 || u < 0.03; }, 4);
-  waitFor(m => pieceH(swing.p, m.x, m.z) !== null && Math.abs(pieceH(swing.p, m.x, m.z) - m.y) < 0.3, () => swing.p.cz > 58.1, 3);
+  waitFor(m => m.z > 43.5 && m.z < 48.2 && Math.abs(m.x) < 6, () => { const u = (state.hazT % 4.6) / 4.6; return u > 0.88 || u < 0.05; }, 4);
+  waitFor(m => standingOn(swing.p, m), () => swing.p.cz > 57.6, 3);
   for (const z of [52, 54, 56]) coinAir(0, z, 16.0);
   table(0, 66, 6, 6, 16.0, -0.02, [0, 3], [0, 3]);
   // the fire run: hit the ramp and fly through the ring of fire, or wait for the flames to drop and roll through
-  route([[0, 72, 15.88], [0, 92, 14.8]], 6, "#e8343a", true);
-  ramp(0, 76, 2.1, 4, 2.0);
+  route([[0, 72, 15.88], [0, 92, 14.8], [0, 98, 14.56]], 6, "#e8343a", true); // runs on under the cannon to the juggling ring, so an overshoot just rolls on
+  boost(0, 70, 0, 1, 3, 5); // back up to speed after the trapeze, so you always clear the ring of fire
+  ramp(0, 76, 2.1, 4, 1.5);
   timedGate("fire", -3, 80.6, 3, 81.4, floorAt(0, 81), 3.4, 1.9);
   stunt(-3, 79.6, 3, 82.4, floorAt(0, 81) + 0.9, "Through the ring of fire!", 3);
   waitFor(m => m.z > 69.5 && m.z < 73.6 && Math.abs(m.x) < 3.5, () => (state.hazT % 3.4) < 0.6);
@@ -738,7 +757,7 @@ function courseBigTop() {
   pads.push({ x0: -2.1, x1: 2.1, z0: 89, z1: 92, dir: [0, 1] });
   sign(["CANNON!"], -4.2, 87.5, Math.PI, { size: 66, bg: "#e8343a", fg: "#ffc93c" });
   for (const [z, y] of [[95, 17.6], [98, 18.0], [101, 17.4]]) coinAir(0, z, y);
-  const C = table(0, 106, 8, 8, 14.4, -0.02, null, [0, 3]);
+  const C = table(0, 106, 8, 8, 14.4, -0.02, [0, 3], [0, 3]); // walled all round (a pin can't knock you off the back)
   movingBumper(-5.5, 103, 5.5, 103, 3.0); movingBumper(5.5, 109, -5.5, 109, 3.6, 1.5);
   coinLine([[-6, 100], [6, 100]], 2); coinLine([[-6, 111.5], [6, 111.5]], 2);
   // the Daredevil Leap: a boost, a big ramp, and a long flight over a row of clown wagons
@@ -750,7 +769,7 @@ function courseBigTop() {
   stunt(-8, 134, 8, 144, 12.6, "DAREDEVIL LEAP!", 5);
   for (const [z, y] of [[133, 18.6], [137, 19.4], [141, 18.8], [145, 16.8]]) coinAir(0, z, y);
   // land on the big stage, dodge the clown cars crossing it, then the home straight
-  const D = table(0, 161, 8, 15, 12.6, -0.015, null, [0, 3]);
+  const D = table(0, 161, 8, 15, 12.6, -0.015, [0, 0.3], [0, 3]); // a back wall, so the clown cars can't knock you off the back
   movingBumper(-6, 152, 6, 152, 2.8); movingBumper(6, 160, -6, 160, 3.2, 1); movingBumper(-6, 168, 6, 168, 2.6, 0.6);
   coinLine([[0, 150], [0, 172]], 2.4);
   route([[0, 176, D.front], [0, 184, 12.0], [-8, 194, 11.6], [-8, 204, 11.2]], 6, "#e8343a", true);
@@ -810,7 +829,7 @@ function courseClouds() {
   // it pauses at each end (the clamp flattens the swing), so there is a clear moment to step on and off
   const ferry = mover(3, 3, t => [28, 168 - 5.6 * clamp(1.5 * Math.cos(t / 5 * Math.PI * 2), -1, 1), 12.4], "cloud");
   waitFor(m => m.x > 22 && m.x < 34 && m.z > 155.5 && m.z < 160.2, () => { const u = (state.hazT % 5) / 5; return u > 0.88 || u < 0.06; }, 4);
-  waitFor(m => pieceH(ferry.p, m.x, m.z) !== null && Math.abs(pieceH(ferry.p, m.x, m.z) - m.y) < 0.3, () => ferry.p.cz > 173.4, 3);
+  waitFor(m => standingOn(ferry.p, m), () => ferry.p.cz > 173.4, 3);
   sign(["HOP ON THE", "DRIFTING CLOUD"], 33.6, 158, Math.PI, { w: 512, h: 160, size: 44, bg: "#fff4e2", fg: "#2d9bff", border: "#1d1838" }, 3.2, 1.0, 1.6);
   for (const z of [165, 168, 171]) coinAir(28, z, 13.0);
   // island 8: a zap and a hard crosswind, then into the chain of bounce clouds (the whole cloud is a bounce pad)
@@ -931,8 +950,8 @@ function coursePier() {
   const cabin = mover(1.6, 1.6, t => { const a = wheelAng(t); return [-12, 193.4 + 11 * Math.sin(a), 15.2 - 11 * Math.cos(a)]; }, "ladybug");
   WHEEL = { cx: -12, cy: 15.2, cz: 193.4, R: 11, ang: wheelAng };
   const phase = () => ((state.hazT % wheelP) + wheelP) % wheelP / wheelP;
-  waitFor(m => m.x > -10.2 && m.x < -5.5 && m.z > 190.5 && m.z < 196.5 && pieceH(cabin.p, m.x, m.z) === null, () => phase() > 0.975 || phase() < 0.02, 3);
-  waitFor(m => pieceH(cabin.p, m.x, m.z) !== null && Math.abs(pieceH(cabin.p, m.x, m.z) - m.y) < 0.3, () => Math.abs(phase() - 0.5) < 0.025, 3);
+  waitFor(m => m.x > -10.2 && m.x < -5.5 && m.z > 190.5 && m.z < 196.5 && !standingOn(cabin.p, m), () => phase() > 0.975 || phase() < 0.02, 3);
+  waitFor(m => standingOn(cabin.p, m), () => Math.abs(phase() - 0.5) < 0.025, 3);
   sign(["RIDE THE", "GIANT WHEEL"], -4.8, 189.6, Math.PI, { w: 512, h: 160, size: 48, bg: "#fff4e2", fg: "#e8343a", border: "#3b1530" }, 3.0, 1.0, 1.6);
   rect(-15.55, 193.4, 2.05, 2.2, 26.2, null, "plaza");
   // the big slide down from the top of the wheel to the finish
@@ -1922,7 +1941,7 @@ function buildObjects() {
     const beam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.35, 0.4), gloss({ color: 0xfff4e2 })); beam.position.y = 1.75; g.add(beam);
     const plateTex = textTex(["LOCKED", "HIT THE GOLD SWITCH"], { w: 512, h: 192, size: 52, bg: "#fff4e2", fg: "#8a1f4a", border: "#8a1f4a" });
     const plate = new THREE.Mesh(new THREE.BoxGeometry(Math.min(w, 4.4), 1.5, 0.14), [M.white, M.white, M.white, M.white, new THREE.MeshStandardMaterial({ map: plateTex }), new THREE.MeshStandardMaterial({ map: plateTex })]);
-    plate.position.y = 2.75; g.add(plate); G.plate = plate;
+    plate.position.y = 2.75; plate.visible = !G.bars; g.add(plate); G.plate = G.bars ? null : plate;
     G.mesh = g; g.userData.dyn = true;
     for (const x of [G.x0 - 0.3, G.x1 + 0.3]) addMesh(new THREE.CylinderGeometry(0.3, 0.3, 2.6, 12), M.post, x, G.y0 + 1.3, (G.z0 + G.z1) / 2);
   }
@@ -2453,13 +2472,15 @@ function stepMarble(m, dt) {
     m.stun = 0.8; m.vx *= 0.15; m.vz *= 0.15; burst(m.x, m.y + 0.6, m.z, 0xfff36b, 14, 5);
     if (m.isPlayer) { sfx("zap"); toast("Zapped! Watch for the cloud flickering"); }
   }
-  // riding a moving platform
+  // spinning floors drag you round with them
   if (m.grounded) for (const tt of turntables) {
     const rx = m.x - tt.cx, rz = m.z - tt.cz; if (rx * rx + rz * rz > tt.R * tt.R || Math.abs(m.y - tt.h) > 0.25) continue;
     const sx = -tt.omega * rz, sz = tt.omega * rx; m.vx += (sx - m.vx) * 2.5 * dt; m.vz += (sz - m.vz) * 2.5 * dt;
     if (m.isPlayer && !state.zoneHints.has("spin")) { state.zoneHints.add("spin"); toast("Spinning floor! It swings you round; roll off where you want to go"); }
   }
-  if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25) { m.x += mv.dx; m.z += mv.dz; } }
+  // riding a moving platform: it carries you (only when it is what you stand on, not a lip beside it),
+  // and its deck is grippy so arriving a little fast does not roll you off
+  if (m.grounded) for (const mv of movers) { const h = pieceH(mv.p, m.x, m.z); if (h !== null && Math.abs(h - m.y) < 0.25 && Math.abs(floorAt(m.x, m.z) - h) < 0.01) { m.x += mv.dx; m.z += mv.dz; m.vx -= m.vx * 3.5 * dt; m.vz -= m.vz * 3.5 * dt; } }
   const sp = Math.hypot(m.vx, m.vz); if (sp > vmax) { m.vx *= vmax / sp; m.vz *= vmax / sp; }
   const wasAir = !m.grounded;
   if (m.grounded) {
@@ -2550,10 +2571,12 @@ function stepMarble(m, dt) {
   }
   for (const dr of drains) {
     const dx = dr.cx - m.x, dz = dr.cz - m.z, d = Math.hypot(dx, dz);
-    if (d > dr.pull || Math.abs(m.y - dr.y) > 1.5) continue;
+    if (d > dr.pull || Math.abs(m.y - dr.y) > 1.5) { if (m.drainT) m.drainT = Math.max(0, m.drainT - dt); continue; }
+    // crawling round the drain for a few seconds flushes you back to the checkpoint, so you are never stuck there
+    if (Math.hypot(m.vx, m.vz) < 4) m.drainT = (m.drainT || 0) + dt; if (m.drainT > 4) { m.drainT = 0; m.flush = dr; startFall(m); return; }
     if (d < dr.r) { m.flush = dr; startFall(m); return; }
     const k = 1 - d / dr.pull, nx = dx / d, nz = dz / d;
-    m.vx += (nx * 13 * k * k + -nz * 5 * k) * dt; m.vz += (nz * 13 * k * k + nx * 5 * k) * dt; // pull in, swirl round
+    m.vx += (nx * 9 * k * k + -nz * 2.5 * k) * dt; m.vz += (nz * 9 * k * k + nx * 2.5 * k) * dt; // pull in, swirl round
     if (m.isPlayer && !state.zoneHints.has("drain")) { state.zoneHints.add("drain"); toast("The drain's pulling you in! Steer clear"); }
   }
 }
@@ -2665,7 +2688,7 @@ function collectStuff(me, dt) {
     state.stuntsDone.add(s); state.coins += s.bonus; sfx("trick"); burst(me.x, me.y + 0.5, me.z, 0xffc93c, 24, 7); toast(`${s.name} +${s.bonus} coins`);
   }
   // rolling up to a shut gate explains itself once per race
-  for (const g of gates) if (!g.open && !state.zoneHints.has("gate") && Math.hypot(me.x - (g.x0 + g.x1) / 2, me.z - (g.z0 + g.z1) / 2) < 3.5) { state.zoneHints.add("gate"); toast("Locked! Roll over the gold switch to open it for 8 seconds"); }
+  for (const g of gates) if (!g.open && !g.cycle && !state.zoneHints.has("gate") && Math.hypot(me.x - (g.x0 + g.x1) / 2, me.z - (g.z0 + g.z1) / 2) < 3.5) { state.zoneHints.add("gate"); toast("Locked! Roll over the gold switch to open it for 8 seconds"); }
 }
 
 // ---------- Falls, checkpoints, puddles ----------
@@ -2756,6 +2779,7 @@ function botInput(m) {
   for (let k = Math.max(0, m.botIdx - 6); k < Math.min(BOTPATH.length, m.botIdx + 30); k++) { const s = BOTPATH[k], d = (s.x - m.x) ** 2 + (s.z - m.z) ** 2; if (d < bd) { bd = d; i = k; } }
   if (bd > 100) { bd = 1e9; for (let k = 0; k < BOTPATH.length; k++) { const s = BOTPATH[k], d = (s.x - m.x) ** 2 + (s.z - m.z) ** 2; if (d < bd) { bd = d; i = k; } } }
   m.botIdx = i;
+  for (const dr of drains) { const dx = m.x - dr.cx, dz = m.z - dr.cz, d = Math.hypot(dx, dz); if (d < dr.pull + 0.5 && d > 0.01) { m.inx = dx / d; m.inz = dz / d; return; } }
   for (const w of waits) if (w.inside(m) && !w.ready()) { m.inx = clamp(-m.vx * 0.4, -1, 1); m.inz = clamp(-m.vz * 0.4, -1, 1); return; }
   const tgt = BOTPATH[Math.min(BOTPATH.length - 1, i + 5)];
   const ahead = BOTPATH[Math.min(BOTPATH.length - 1, i + 12)];
